@@ -39,5 +39,6 @@ Source('fa_lru.cc')
 Source('sector_blk.cc')
 Source('sector_tags.cc')
 Source('super_blk.cc')
+Source('hawkeye_sampler.cc')
 
 GTest('dueling.test', 'dueling.test.cc', 'dueling.cc')

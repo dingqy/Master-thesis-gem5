@@ -1,30 +1,44 @@
 /**
  * Hawkeye cache replacement policy
- * 
+ *
  * Reference link: https://www.cs.utexas.edu/~lin/papers/isca16.pdf
  */
 
-#include "base/sat_counter.hh"
-#include <vector>
-#include <set>
+#include <cmath>
+#include <iostream>
 #include <random>
+#include <set>
+#include <vector>
+
+#include "base/sat_counter.hh"
 
 namespace gem5 {
 
+#define NUM_WAY_CACHE_SET 8UL
+#define HASHED_PC_LEN 16UL
+#define HASHED_PC_MASK ((1UL << HASHED_PC_LEN) - 1)
+#define TIMESTAMP_LEN 8UL
+#define TIMESTAMP_LEN_MASK ((1UL << TIMESTAMP_LEN) - 1)
+#define ADDRESS_TAG_LEN 16UL
+#define ADDRESS_TAG_MASK ((1UL << ADDRESS_TAG_LEN) - 1)
+
+
 /**
  * Entry: 2-byte Address, 2-byte PC, 1-byte timestamp
- * 
+ *
  * Sample the whold cache with 64 random sets. The prediction need 8x history of set associativity
- * 
+ *
  * Set-associative cache: Each set has 128 entries (??? Which structure of this sampled cache)
- * 
+ *
  * LRU replacement policy
  */
-class HistorySampler {
+class HistorySampler
+{
 
   protected:
-    struct CacheLine {
-      
+    struct CacheLine
+    {
+
       bool valid;
 
       uint8_t lru;
@@ -32,44 +46,50 @@ class HistorySampler {
       uint64_t entry_tag;
 
       uint16_t getAddress() {
-        return (entry_tag >> 24) & 0xFFFF;
+        return (entry_tag >> (TIMESTAMP_LEN + HASHED_PC_LEN)) & ADDRESS_TAG_MASK;
       }
 
       uint16_t getPC() {
-        return (entry_tag >> 8) & 0xFFFF;
+        return (entry_tag >> (TIMESTAMP_LEN)) & HASHED_PC_MASK;
       }
 
       uint8_t getTimestamp() {
-        return entry_tag & 0xFF;
+        return entry_tag & TIMESTAMP_LEN_MASK;
       }
 
       void setPC(uint16_t PC) {
-        entry_tag = entry_tag & 0xFFFF0000FF;
+        uint8_t timestamp = entry_tag & TIMESTAMP_LEN_MASK;
+        entry_tag = (entry_tag >> (TIMESTAMP_LEN + HASHED_PC_LEN)) << (TIMESTAMP_LEN + HASHED_PC_LEN) ;
         entry_tag |= ((uint64_t) PC) << 8;
+        entry_tag |= timestamp;
       }
 
       void setTimestamp(uint8_t timestamp) {
-        entry_tag = (entry_tag & 0xFFFFFFFF00) | timestamp;
+        entry_tag = ((entry_tag >> TIMESTAMP_LEN) << TIMESTAMP_LEN) | timestamp;
       }
 
       CacheLine() : valid(false), lru(0), entry_tag(0) {};
 
     };
 
-    struct CacheSet {
-      struct CacheLine ways[128];
-      
-      void insert(uint64_t addr, uint64_t PC, uint8_t timestamp) {
+    struct CacheSet
+    {
+      struct CacheLine ways[NUM_WAY_CACHE_SET];
+
+      void insert(uint16_t addr_tag, uint16_t PC, uint8_t timestamp) {
+        // Assume address and PC has been translated
         bool debug_insert = false;
 
-        for (int i = 0; i < 128; i++) {
+        for (int i = 0; i < NUM_WAY_CACHE_SET; i++) {
           if (!ways[i].valid || (ways[i].valid && ways[i].lru == 0)) {
-            for (int j = 0; j < 128; j++) {
+            for (int j = 0; j < NUM_WAY_CACHE_SET; j++) {
               if (ways[j].valid && ways[j].lru > 0) {
                 ways[j].lru -= 1;
               }
             }
-            // TODO: Insert into the cache line
+            ways[i].lru = NUM_WAY_CACHE_SET - 1;
+            ways[i].entry_tag = (((uint64_t) addr_tag) << (TIMESTAMP_LEN + HASHED_PC_LEN)) | (((uint64_t) PC) << (TIMESTAMP_LEN)) | ((uint64_t) timestamp);
+            ways[i].valid = true;
 
             debug_insert = true;
             break;
@@ -79,22 +99,18 @@ class HistorySampler {
         assert(debug_insert);
       }
 
-      bool access(uint64_t addr, uint64_t PC, uint8_t timestamp, uint16_t *last_PC, uint8_t *last_timestamp) {
-        // TODO: address tag
-        uint16_t addr_tag;
+      bool access(uint16_t addr_tag, uint16_t PC, uint8_t timestamp, uint16_t *last_PC, uint8_t *last_timestamp) {
 
-        for (int i = 0; i < 128; i++) {
+        for (int i = 0; i < NUM_WAY_CACHE_SET; i++) {
           if (addr_tag == ways[i].getAddress()) {
             *last_PC = ways[i].getPC();
             *last_timestamp = ways[i].getTimestamp();
 
-            // TODO: PC
             ways[i].setPC(PC);
             ways[i].setTimestamp(timestamp);
             return true;
           }
         }
-
         return false;
 
       }
@@ -104,64 +120,73 @@ class HistorySampler {
     };
 
   private:
-    std::set<uint32_t> target_sample_sets;
-
     struct CacheSet *sample_data;
+
+    uint64_t *set_timestamp_counter;
 
     int _num_sets;
 
-    int _num_ways;
+    int _num_cache_sets;
 
-    std::default_random_engine generator;
+    int _cache_block_size;
+
+    int _log2_num_sets;
+
+    int _log2_cache_block_size;
+
+    int _timer_size;
 
   public:
 
-    HistorySampler(const int max_num_sample_sets, const int num_sets);
+    HistorySampler(const int num_sets, const int num_cache_sets, const int cache_block_size, const int timer_size);
 
     ~HistorySampler();
 
-    bool sample(uint64_t addr, uint64_t PC, uint8_t timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp);
+    bool sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp, int log2_num_pred_entries);
+
+    uint64_t getCurrentTimestamp(int set);
 
 };
 
-/**
- * 4-bit per entry, 32 entries per vector, 1 vector per set, 64 sets
- * 
- * TODO: Is this be updated when cache miss immediatly occurs or until it is inserted into the cache? 
- */
-class OccupencyVector {
+class OccupencyVector
+{
 
   private:
+    std::vector<unsigned int> liveness_history;
 
-    int size = 0;
+    uint64_t num_cache;
 
-    int max_num_element = 0;
+    uint64_t num_dont_cache;
 
-    int max_value_entry = 0;
-  
-    std::vector<uint8_t> data;
+    uint64_t access;
 
-    int head = 0;
+    uint64_t CACHE_SIZE;
 
-    int tail = 0;
+    uint64_t vector_size;
 
   public:
+    OccupencyVector(const uint64_t cache_size, const uint64_t capacity);
 
-    OccupencyVector(const int vector_size, const int bits_per_entry);
-    
     ~OccupencyVector() = default;
 
-    bool opt_result_gen(const uint8_t last_timestamp, int cache_capacity);
+    void add_access(uint64_t curr_quanta);
 
-    uint8_t push(uint8_t value);
+    void add_prefetch(uint64_t curr_quanta);
+
+    bool should_cache(uint64_t curr_quanta, uint64_t last_quanta);
+
+    uint64_t get_num_opt_hits();
+
+    uint64_t get_vector_size();
 };
 
 /**
  * 3-bit saturating counter, high-order bit determines whether it is cache-averse (0) or cache-friendly (1)
- * 
+ *
  * 8K entries (2^13 => 13-bit hashed PC index)
  */
-class PCBasedPredictor {
+class PCBasedPredictor
+{
 
   private:
 
@@ -183,6 +208,7 @@ class PCBasedPredictor {
 
     bool predict(uint64_t PC);
 
+    int log2_num_entries();
 };
 
 }
