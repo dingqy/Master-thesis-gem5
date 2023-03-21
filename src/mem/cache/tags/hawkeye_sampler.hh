@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "base/sat_counter.hh"
-#include "debug/CacheTags.hh"
+#include "debug/CacheRepl.hh"
 #include "base/trace.hh"
 
 namespace gem5 {
