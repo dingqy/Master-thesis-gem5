@@ -11,9 +11,12 @@
 #include <vector>
 
 #include "base/sat_counter.hh"
+#include "debug/CacheTags.hh"
+#include "base/trace.hh"
 
 namespace gem5 {
 
+// Warning: Sampled cache way is fixed (8)
 #define NUM_WAY_CACHE_SET 8UL
 #define HASHED_PC_LEN 16UL
 #define HASHED_PC_MASK ((1UL << HASHED_PC_LEN) - 1)
@@ -96,7 +99,7 @@ class HistorySampler
           }
         }
 
-        assert(debug_insert);
+        gem5_assert(debug_insert, "Sampled cache insert fails");
       }
 
       bool access(uint16_t addr_tag, uint16_t PC, uint8_t timestamp, uint16_t *last_PC, uint8_t *last_timestamp) {
@@ -108,15 +111,20 @@ class HistorySampler
 
             ways[i].setPC(PC);
             ways[i].setTimestamp(timestamp);
+
+            for (int j = 0; j < NUM_WAY_CACHE_SET; j++) {
+              if (ways[j].lru > ways[i].lru) {
+                ways[j].lru -= 1;
+              }
+            }
+            ways[i].lru = NUM_WAY_CACHE_SET - 1;
             return true;
           }
         }
         return false;
-
       }
 
       CacheSet() {};
-
     };
 
   private:

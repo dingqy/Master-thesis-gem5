@@ -7,6 +7,7 @@ namespace gem5
 {
 
 // Sample 64 sets
+// Warning: 64 sets is fixed here
 #define bitmask(l) (((l) == 64) ? (unsigned long long)(-1LL) : ((1LL << (l))-1LL))
 #define bits(x, i, l) (((x) >> (i)) & bitmask(l))
 #define SAMPLED_SET(set, cache_set) (bits(set, 0 , 6) == bits(set, ((unsigned long long)log2(cache_set) - 6), 6) )
@@ -89,6 +90,7 @@ PCBasedPredictor::~PCBasedPredictor() {
 
 void PCBasedPredictor::train(uint64_t last_PC, bool opt_decision) {
     uint64_t signature = last_PC % num_entries;
+    panic_if(signature != last_PC, "Current predictor entries should always the same as PC bits");
     if (opt_decision) {
         // Cache hit
         if (counters[signature] < max_value) {
@@ -103,6 +105,7 @@ void PCBasedPredictor::train(uint64_t last_PC, bool opt_decision) {
 
 bool PCBasedPredictor::predict(uint64_t PC) {
     uint64_t signature = CRC(PC) % num_entries;
+    DPRINTF(CacheTag, "Predictor ---- Hashed PC: 0x%.8x", signature);
     return (counters[signature] >> (bits_per_entry - 1)) & 0x1;
 }
 
@@ -114,6 +117,9 @@ HistorySampler::HistorySampler(const int num_sets, const int num_cache_sets, con
     : _num_sets(num_sets), _num_cache_sets(num_cache_sets), _cache_block_size(cache_block_size), _timer_size(timer_size) {
     sample_data = new CacheSet[num_sets];
     set_timestamp_counter = new uint64_t[num_sets];
+    for (int i = 0; i < num_sets; i++) {
+        set_timestamp_counter[i] = 0;
+    }
     _log2_num_sets = (int) std::log2(num_sets);
     _log2_cache_block_size = (int) std::log2(cache_block_size);
 }
@@ -125,20 +131,28 @@ HistorySampler::~HistorySampler() {
 
 bool HistorySampler::sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp, int log2_num_pred_entries) {
     if (SAMPLED_SET(set, _num_cache_sets)) {
+        
+        DPRINTF(CacheTag, "Sampler ---- Set hit: Set index %d\n", set);
 
         uint32_t set_index = (addr >> _log2_cache_block_size) % _num_sets;
         uint16_t addr_tag = CRC(addr >> (_log2_cache_block_size + _log2_num_sets)) % (ADDRESS_TAG_MASK + 1);
         uint16_t hashed_pc = CRC(PC) % log2_num_pred_entries;
         uint8_t timestamp = set_timestamp_counter[set_index];
+
+        DPRINTF(CacheTag, "Sampler ---- Set info: Set index %d, Address Tag: 0x%.8x, Hased PC: 0x%.8x, Current Timestamp: %d\n", set, addr_tag, hashed_pc, timestamp);
+
         *curr_timestamp = timestamp;
 
         if (!sample_data[set_index].access(addr_tag, hashed_pc, timestamp, last_PC, last_timestamp)) {
             sample_data[set_index].insert(addr_tag, hashed_pc, timestamp);
             set_timestamp_counter[set_index] = (set_timestamp_counter[set_index] + 1) % _timer_size;
+
+            DPRINTF(CacheTag, "Sampler ---- Sampler miss handling: Last timestamp: %d, Current Timestamp: %d\n", last_timestamp, set_timestamp_counter[set_index]);
             return false;
         }
 
         set_timestamp_counter[set_index] = (set_timestamp_counter[set_index] + 1) % _timer_size;
+        DPRINTF(CacheTag, "Sampler ---- Sampler hit: Last timestamp: %d, Current Timestamp: %d\n", last_timestamp, set_timestamp_counter[set_index]);
         return true;
     } else {
         return false;
