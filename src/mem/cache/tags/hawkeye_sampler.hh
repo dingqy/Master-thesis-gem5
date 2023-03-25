@@ -17,13 +17,13 @@
 namespace gem5 {
 
 // Warning: Sampled cache way is fixed (8)
-#define NUM_WAY_CACHE_SET 8UL
-#define HASHED_PC_LEN 16UL
-#define HASHED_PC_MASK ((1UL << HASHED_PC_LEN) - 1)
-#define TIMESTAMP_LEN 8UL
-#define TIMESTAMP_LEN_MASK ((1UL << TIMESTAMP_LEN) - 1)
-#define ADDRESS_TAG_LEN 16UL
-#define ADDRESS_TAG_MASK ((1UL << ADDRESS_TAG_LEN) - 1)
+constexpr uint32_t NUM_WAY_CACHE_SET = 8;
+constexpr uint32_t HASHED_PC_LEN = 16;
+constexpr uint64_t HASHED_PC_MASK = ((1 << HASHED_PC_LEN) - 1);
+constexpr uint32_t TIMESTAMP_LEN = 8;
+constexpr uint64_t TIMESTAMP_LEN_MASK = ((1 << TIMESTAMP_LEN) - 1);
+constexpr uint32_t ADDRESS_TAG_LEN = 16;
+constexpr uint64_t ADDRESS_TAG_MASK = ((1 << ADDRESS_TAG_LEN) - 1);
 
 
 /**
@@ -46,32 +46,40 @@ class HistorySampler
 
       uint8_t lru;
 
-      uint64_t entry_tag;
+      uint64_t _address;
+
+      uint64_t _pc;
+
+      uint64_t _timestamp;
 
       uint16_t getAddress() {
-        return (entry_tag >> (TIMESTAMP_LEN + HASHED_PC_LEN)) & ADDRESS_TAG_MASK;
+        gem5_assert(_address < (1 << ADDRESS_TAG_LEN), "Address bits are wrong");
+        return _address;
       }
 
       uint16_t getPC() {
-        return (entry_tag >> (TIMESTAMP_LEN)) & HASHED_PC_MASK;
+        gem5_assert(_pc < (1 << HASHED_PC_LEN), "PC bits are wrong");
+        return _pc;
       }
 
       uint8_t getTimestamp() {
-        return entry_tag & TIMESTAMP_LEN_MASK;
+        gem5_assert(_timestamp < (1 << TIMESTAMP_LEN), "timestamp bits are wrong");
+        return _timestamp;
       }
 
       void setPC(uint16_t PC) {
-        uint8_t timestamp = entry_tag & TIMESTAMP_LEN_MASK;
-        entry_tag = (entry_tag >> (TIMESTAMP_LEN + HASHED_PC_LEN)) << (TIMESTAMP_LEN + HASHED_PC_LEN) ;
-        entry_tag |= ((uint64_t) PC) << 8;
-        entry_tag |= timestamp;
+        _pc = PC;
       }
 
       void setTimestamp(uint8_t timestamp) {
-        entry_tag = ((entry_tag >> TIMESTAMP_LEN) << TIMESTAMP_LEN) | timestamp;
+        _timestamp = timestamp;
       }
 
-      CacheLine() : valid(false), lru(0), entry_tag(0) {};
+      void setAddrTag(uint16_t addrtag) {
+        _address = addrtag;
+      }
+
+      CacheLine() : valid(false), lru(0), _address(0), _pc(0), _timestamp(0) {};
 
     };
 
@@ -91,7 +99,9 @@ class HistorySampler
               }
             }
             ways[i].lru = NUM_WAY_CACHE_SET - 1;
-            ways[i].entry_tag = (((uint64_t) addr_tag) << (TIMESTAMP_LEN + HASHED_PC_LEN)) | (((uint64_t) PC) << (TIMESTAMP_LEN)) | ((uint64_t) timestamp);
+            ways[i].setAddrTag(addr_tag);
+            ways[i].setPC(PC);
+            ways[i].setTimestamp(timestamp);
             ways[i].valid = true;
 
             debug_insert = true;
@@ -132,8 +142,10 @@ class HistorySampler
 
     uint64_t *set_timestamp_counter;
 
+    // Sampler sets
     int _num_sets;
 
+    // Target cache sets
     int _num_cache_sets;
 
     int _cache_block_size;
@@ -150,7 +162,7 @@ class HistorySampler
 
     ~HistorySampler();
 
-    bool sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp, int log2_num_pred_entries);
+    bool sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp);
 
     uint64_t getCurrentTimestamp(int set);
 

@@ -119,7 +119,7 @@ void Hawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_data, co
     uint8_t last_timestamp;
     uint16_t last_PC;
 
-    if (sampler->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp, predictor->log2_num_entries())) {
+    if (sampler->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp)) {
         curr_timestamp = curr_timestamp % opt_vector->get_vector_size();
 
         DPRINTF(CacheRepl, "Cache hit ---- Sampler Hit, Last timestamp: %d, Current timestamp: %d, Last PC: %d\n", last_timestamp, curr_timestamp, last_PC);
@@ -169,7 +169,7 @@ void Hawkeye::reset(const std::shared_ptr<ReplacementData>& replacement_data, co
     uint8_t last_timestamp;
     uint16_t last_PC;
 
-    if (sampler->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp, predictor->log2_num_entries())) {
+    if (sampler->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp)) {
         curr_timestamp = curr_timestamp % opt_vector->get_vector_size();
 
         DPRINTF(CacheRepl, "Cache miss handling ---- Sampler Hit, Last timestamp: %d, Current timestamp: %d, Last PC: %d\n", last_timestamp, curr_timestamp, last_PC);

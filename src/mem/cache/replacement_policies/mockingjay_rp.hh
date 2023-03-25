@@ -33,10 +33,7 @@ class Mockingjay : public Base
          *
          * Allow multiple max_RRPV-1 to exist and will choose based on the index of the cache line
          */
-        SatCounter8 rrpv;
-
-        /** Cacheline type */
-        bool is_cache_friendly;
+        GenericSatCounter<uint8_t> etr;
 
         /** Whether the entry is valid. */
         bool valid;
@@ -44,7 +41,7 @@ class Mockingjay : public Base
         /**
          * Default constructor. Invalidate data.
          */
-        MockingjayReplData(const int num_bits) : rrpv(num_bits), is_cache_friendly(false), valid(false) {}
+        MockingjayReplData(const int num_bits) : etr(num_bits), valid(false) {}
     };
 
   public:
@@ -54,12 +51,17 @@ class Mockingjay : public Base
 
     /** History Sampler */
 
-    /** Occupancy Vector */
-
-    /** PC-based Binary Classifier */
+    /** Reuse Distance Predictor */
 
     const unsigned int numRRPVBits;
 
+    const uint8_t *age_ctr;
+
+    const int _num_etr_bits;
+
+    const int _log2_block_size;
+
+    const int _log2_num_sets;
 
     /**
      * Invalidate replacement data to set it as the next probable victim.
