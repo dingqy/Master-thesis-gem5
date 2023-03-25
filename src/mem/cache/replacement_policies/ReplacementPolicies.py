@@ -206,3 +206,33 @@ class HawkeyeRP(BaseReplacementPolicy):
     )
     num_sampled_sets = Param.Int(300, "Number of sets in sampled cache")
     timer_size = Param.Int(10, "Number of bits for timestamp")
+
+class MockingjayRP(BaseReplacementPolicy):
+    """
+    Parameters:
+        1. num_etr_bits (ETR bits)
+        2. num_cache_sets (Number of target cache sets)
+        3. cache_block_size (Number of target cache block size)
+        4. num_cache_ways (Number of target cache ways)
+        5. num_cpu (The number of cores)
+        6. num_pred_entries (Number of predictor entries)
+        7. pred_num_bits_per_entry (Number of counter bits per entry in predictor)
+        8. num_sampled_sets (Number of sets in sampled cache)
+        9. timer_size (Number of bits for timestamp)
+    """
+
+    type = "MockingjayRP"
+    cxx_class = "gem5::replacement_policy::MockingjayRP"
+    cxx_header = "mem/cache/replacement_policies/mockingjay_rp.hh"
+
+    num_etr_bits = Param.Int(3, "Number of bits per ETR")
+    num_cache_sets = Param.Int(16384, "Number of target cache sets")
+    cache_block_size = Param.Int(64, "Number of target cache block size")
+    num_cache_ways = Param.Int(16, "Number of target cache ways")
+    num_pred_entries = Param.Int(1 << 11, "Number of predictor entries")
+    pred_num_bits_per_entry = Param.Int(
+        7, "Number of counter bits per entry in predictor"
+    )
+    num_sampled_sets = Param.Int(512, "Number of sets in sampled cache")
+    timer_size = Param.Int(8, "Number of bits for timestamp")
+    num_cpu = Param.Int(1, "Number of cores")

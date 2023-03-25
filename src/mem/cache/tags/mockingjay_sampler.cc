@@ -77,8 +77,8 @@ int ReuseDistPredictor::log2_num_entries() {
     return (int) std::log2(num_entries);
 }
 
-HistorySampler::HistorySampler(const int num_sets, const int num_cache_sets, const int cache_block_size, const int timer_size, const int num_cpu)
-    : _num_sets(num_sets), _num_cache_sets(num_cache_sets), _cache_block_size(cache_block_size), _timer_size(timer_size), _num_cpu(num_cpu) {
+SampledCache::SampledCache(const int num_sets, const int num_cache_sets, const int cache_block_size, const int timer_size, const int num_cpu)
+    : _num_sets(num_sets), _num_cache_sets(num_cache_sets), _cache_block_size(cache_block_size), _timer_size(1 << timer_size), _num_cpu(num_cpu) {
     sample_data = new CacheSet[num_sets];
     set_timestamp_counter = new uint64_t[num_sets];
     for (int i = 0; i < num_sets; i++) {
@@ -88,22 +88,22 @@ HistorySampler::HistorySampler(const int num_sets, const int num_cache_sets, con
     _log2_cache_block_size = (int) std::log2(cache_block_size);
 }
 
-HistorySampler::~HistorySampler() {
+SampledCache::~SampledCache() {
     delete[] sample_data;
     delete[] set_timestamp_counter;
 }
 
-bool HistorySampler::sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp, bool hit) {
-    int log2_num_cache_sets = static_cast<int>(std::log2(_num_cache_sets));
+bool SampledCache::sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp, bool hit) {
+    int log2_num_cache_sets = (int) std::log2(_num_cache_sets);
 
     if (is_sampled_set(set, log2_num_cache_sets, _log2_num_sets)) {
 
         DPRINTF(CacheRepl, "Sampler ---- Set hit: Set index %d\n", set);
 
-        uint64_t set_index = (addr >> _log2_cache_block_size) & (1 << (_log2_num_sets + log2_num_cache_sets) - 1);
+        uint64_t set_index = (addr >> _log2_cache_block_size) & ((1 << (_log2_num_sets + log2_num_cache_sets)) - 1);
         uint16_t addr_tag = (addr >> (_log2_cache_block_size + _log2_num_sets + log2_num_cache_sets)) & ADDRESS_TAG_MASK;
 
-        // TODO: Core id is not hased into the PC
+        // TODO: Core id is not hashed into PC
         uint16_t hashed_pc = get_pc_signature(PC, hit, false, 0, _num_cpu) & HASHED_PC_MASK;
         uint8_t timestamp = set_timestamp_counter[set_index];
 

@@ -32,7 +32,7 @@ constexpr uint64_t ADDRESS_TAG_MASK = ((1 << ADDRESS_TAG_LEN) - 1);
  *
  * LRU replacement policy
  */
-class HistorySampler
+class SampledCache
 {
 
   protected:
@@ -155,9 +155,9 @@ class HistorySampler
 
   public:
 
-    HistorySampler(const int num_sets, const int num_cache_sets, const int cache_block_size, const int timer_size, const int num_cpu);
+    SampledCache(const int num_sets, const int num_cache_sets, const int cache_block_size, const int timer_size, const int num_cpu);
 
-    ~HistorySampler();
+    ~SampledCache();
 
     bool sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp, bool hit);
 

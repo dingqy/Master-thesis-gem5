@@ -114,7 +114,7 @@ int PCBasedPredictor::log2_num_entries() {
 }
 
 HistorySampler::HistorySampler(const int num_sets, const int num_cache_sets, const int cache_block_size, const int timer_size)
-    : _num_sets(num_sets), _num_cache_sets(num_cache_sets), _cache_block_size(cache_block_size), _timer_size(timer_size) {
+    : _num_sets(num_sets), _num_cache_sets(num_cache_sets), _cache_block_size(cache_block_size), _timer_size(1 << timer_size) {
     sample_data = new CacheSet[num_sets];
     set_timestamp_counter = new uint64_t[num_sets];
     for (int i = 0; i < num_sets; i++) {

@@ -10,6 +10,7 @@
 #include "base/sat_counter.hh"
 #include "base/types.hh"
 #include "mem/cache/replacement_policies/base.hh"
+#include "mem/cache/tags/mockingjay_sampler.hh"
 
 namespace gem5
 {
@@ -33,7 +34,11 @@ class Mockingjay : public Base
          *
          * Allow multiple max_RRPV-1 to exist and will choose based on the index of the cache line
          */
-        GenericSatCounter<uint8_t> etr;
+        int8_t etr;
+
+        int min_etr;
+
+        int max_etr;
 
         /** Whether the entry is valid. */
         bool valid;
@@ -41,7 +46,7 @@ class Mockingjay : public Base
         /**
          * Default constructor. Invalidate data.
          */
-        MockingjayReplData(const int num_bits) : etr(num_bits), valid(false) {}
+        MockingjayReplData(const int num_bits) : etr(0), valid(false), min_etr(-(1 << (num_bits - 1))), max_etr(1 << (num_bits - 1) - 1) {}
     };
 
   public:
@@ -50,10 +55,12 @@ class Mockingjay : public Base
     ~Mockingjay() = default;
 
     /** History Sampler */
+    SampledCache *sampled_cache;
 
     /** Reuse Distance Predictor */
+    ReuseDistPredictor *predictor;
 
-    const unsigned int numRRPVBits;
+    const unsigned int num_etr_bits;
 
     const uint8_t *age_ctr;
 
