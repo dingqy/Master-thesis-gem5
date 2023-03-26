@@ -27,12 +27,9 @@ class Mockingjay : public Base
     struct MockingjayReplData : ReplacementData
     {
         /**
-         * Re-Reference Interval Prediction Value.
-         * 0 -> cache friently (hit, miss)
-         * max_RRPV-1 -> cache-averse (hit, miss)
-         * RRPV value will be aged when cache miss occurs on a cache friendly line
-         *
-         * Allow multiple max_RRPV-1 to exist and will choose based on the index of the cache line
+         * ETR Value
+         * 
+         * TODO: More detail comments
          */
         int8_t etr;
 
@@ -50,13 +47,13 @@ class Mockingjay : public Base
         /**
          * Default constructor. Invalidate data.
          */
-        MockingjayReplData(const int num_bits) : etr(0), valid(false), abs_max_etr((1 << (num_bits - 1)) - 1) {}
+        MockingjayReplData(const int num_bits) : etr(0), abs_max_etr((1 << (num_bits - 1)) - 1), valid(false) {}
     };
 
   public:
     typedef MockingjayRPParams Params;
     Mockingjay(const Params &p);
-    ~Mockingjay() = default;
+    ~Mockingjay();
 
     /** History Sampler */
     SampledCache *sampled_cache;
@@ -65,22 +62,19 @@ class Mockingjay : public Base
     ReuseDistPredictor *predictor;
 
     /** Number of bits of ETR counter */
-    const uint32_t _num_etr_bits;
+    const int _num_etr_bits;
 
     /** Clock age counter for each set */
     uint8_t *age_ctr;
 
-    /** Number of bits of ETR counters */
-    const int _num_etr_bits;
-
     /** Number of bits of cache block size */
-    const int _log2_block_size;
+    int _log2_block_size;
 
     /** Number of bits of sampled cache sets */
-    const int _log2_num_sets;
+    int _log2_num_sets;
 
     /** Numer of bits of aging clock */
-    const int _num_clock_bits;
+    int _num_clock_bits;
 
     /**
      * Invalidate replacement data to set it as the next probable victim.
@@ -97,6 +91,8 @@ class Mockingjay : public Base
      * This is where cache hit handling happens. It will not modify data but only update the RRPV values.
      *
      * @param replacement_data Replacement data to be touched.
+     * @param pkt The origin request
+     * @param candidate All the replacement candidate
      */
     void touch(const std::shared_ptr<ReplacementData>& replacement_data, const PacketPtr pkt, const ReplacementCandidates& candidates) override;
     void touch(const std::shared_ptr<ReplacementData>& replacement_data, const PacketPtr pkt) override;
@@ -108,7 +104,10 @@ class Mockingjay : public Base
      * This is where cache miss handling actually happens. Immediate cache miss will be stored in the MSHR until low-level memory components return that cache line
      *
      * @param replacement_data Replacement data to be reset.
+     * @param pkt The origin request
+     * @param candidate All the replacement candidate
      */
+    void reset(const std::shared_ptr<ReplacementData>& replacement_data, const PacketPtr pkt, const ReplacementCandidates& candidates) override;
     void reset(const std::shared_ptr<ReplacementData>& replacement_data, const PacketPtr pkt) override;
     void reset(const std::shared_ptr<ReplacementData>& replacement_data) const override;
 

@@ -47,6 +47,8 @@ void Hawkeye::invalidate(const std::shared_ptr<ReplacementData> &replacement_dat
         std::static_pointer_cast<HawkeyeReplData>(replacement_data);
 
     // Invalidate entry
+
+    // TODO: If it is sampled cache line, then that cache line should be invalidated also.
     casted_replacement_data->valid = false;
     casted_replacement_data->is_cache_friendly = false;
 }

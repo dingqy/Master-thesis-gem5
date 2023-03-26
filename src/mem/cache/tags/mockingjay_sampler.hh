@@ -182,7 +182,7 @@ class SampledCache
 
     int _timer_size;
 
-    int _num_cpu;
+    int _num_cpus;
 
   public:
 
@@ -218,15 +218,17 @@ class ReuseDistPredictor
 
     int _granularity;
 
+    int _num_cpus;
+
   public:
 
-    ReuseDistPredictor(const int num_entries, const int bits_per_entry, const int aging_clock_size);
+    ReuseDistPredictor(const int num_entries, const int bits_per_entry, const int aging_clock_size, const int num_cpus);
 
     ~ReuseDistPredictor();
 
-    void train(uint64_t last_PC, bool hit);
+    void train(uint64_t last_PC, bool sampled_cache_hit, uint8_t curr_timestamp, uint8_t last_timestamp);
 
-    uint16_t predict(uint64_t PC, bool hit, uint32_t num_cpus, int core_id, uint8_t curr_timestamp, uint8_t last_timestamp, int etr_inf);
+    uint16_t predict(uint64_t PC, bool hit, int core_id, int etr_inf);
 
     int log2_num_entries();
 };

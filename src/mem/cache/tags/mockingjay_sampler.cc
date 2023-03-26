@@ -5,8 +5,7 @@ namespace gem5 {
 constexpr double TEMP_DIFFERENCE = 1.0 / 16.0;
 constexpr int MAXRD_THRESHOLD = 22;
 
-uint64_t CRC_HASH( uint64_t _blockAddress )
-{
+uint64_t CRC_HASH( uint64_t _blockAddress ) {
     static const unsigned long long crcPolynomial = 3988292384ULL;
     unsigned long long _returnVal = _blockAddress;
     for ( unsigned int i = 0; i < 3; i++)
@@ -69,8 +68,8 @@ uint64_t get_pc_signature(uint64_t pc, bool hit, bool prefetch, uint32_t core, u
     return pc;
 }
 
-ReuseDistPredictor::ReuseDistPredictor(const int num_entries, const int bits_per_entry, const int aging_clock_size) : 
-                                       num_entries(num_entries), bits_per_entry(bits_per_entry), _granularity(aging_clock_size) {
+ReuseDistPredictor::ReuseDistPredictor(const int num_entries, const int bits_per_entry, const int aging_clock_size, const int num_cpus) : 
+                                       num_entries(num_entries), bits_per_entry(bits_per_entry), _granularity(aging_clock_size), _num_cpus(num_cpus) {
     counters = new int[num_entries];
     for (int i = 0; i < num_entries; i++) {
         counters[i] = -1;
@@ -83,7 +82,7 @@ ReuseDistPredictor::~ReuseDistPredictor() {
     delete[] counters;
 }
 
-void ReuseDistPredictor::train(uint64_t signature, bool hit, bool sampled_cache_hit, uint8_t curr_timestamp, uint8_t last_timestamp) {
+void ReuseDistPredictor::train(uint64_t last_PC, bool sampled_cache_hit, uint8_t curr_timestamp, uint8_t last_timestamp) {
     // TODO: Mockingjay train mechanism
     // Sampled cache hit
     //  1. If it first-time train, then use difference directly
@@ -91,26 +90,15 @@ void ReuseDistPredictor::train(uint64_t signature, bool hit, bool sampled_cache_
     // Sampled cache miss
     //  1. Train as scan (INF_RD)
     
-    uint64_t signature = last_PC % num_entries;
-    panic_if(signature != last_PC, "Current predictor entries should always the same as PC bits");
-    if (hit) {
-        // Cache hit
-        if (counters[signature] < max_value) {
-            counters[signature] += 1;
-        }
-    } else {
-        if (counters[signature] > 0) {
-            counters[signature] -= 1;
-        }
-    }
+    
 }
 
-uint16_t ReuseDistPredictor::predict(uint64_t PC, bool hit, uint32_t num_cpus, int core_id, uint8_t curr_timestamp, uint8_t last_timestamp, int etr_inf) {
-    uint64_t signature = get_pc_signature(PC, hit, false, core_id, num_cpus) % num_entries;
+uint16_t ReuseDistPredictor::predict(uint64_t PC, bool hit, int core_id, int etr_inf) {
+    uint64_t signature = get_pc_signature(PC, hit, false, core_id, _num_cpus) % num_entries;
     DPRINTF(CacheRepl, "Predictor ---- Hashed PC: 0x%.8x", signature);
     if (counters[signature] == -1) {
         // Initialization of reuse predictor
-        if (num_cpus == 1) {
+        if (_num_cpus == 1) {
             return 0;
         } else {
             return etr_inf;
@@ -129,8 +117,8 @@ int ReuseDistPredictor::log2_num_entries() {
     return (int) std::log2(num_entries);
 }
 
-SampledCache::SampledCache(const int num_sets, const int num_cache_sets, const int cache_block_size, const int timer_size, const int num_cpu)
-    : _num_sets(num_sets), _num_cache_sets(num_cache_sets), _cache_block_size(cache_block_size), _timer_size(1 << timer_size), _num_cpu(num_cpu) {
+SampledCache::SampledCache(const int num_sets, const int num_cache_sets, const int cache_block_size, const int timer_size, const int num_cpus)
+    : _num_sets(num_sets), _num_cache_sets(num_cache_sets), _cache_block_size(cache_block_size), _timer_size(1 << timer_size), _num_cpus(num_cpus) {
     sample_data = new CacheSet[num_sets];
     set_timestamp_counter = new uint64_t[num_sets];
     for (int i = 0; i < num_sets; i++) {
@@ -156,7 +144,7 @@ bool SampledCache::sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, i
         uint16_t addr_tag = (addr >> (_log2_cache_block_size + _log2_num_sets + log2_num_cache_sets)) & ADDRESS_TAG_MASK;
 
         // TODO: Core id is not hashed into PC
-        uint16_t hashed_pc = get_pc_signature(PC, hit, false, core_id, _num_cpu) & HASHED_PC_MASK;
+        uint16_t hashed_pc = get_pc_signature(PC, hit, false, core_id, _num_cpus) & HASHED_PC_MASK;
         uint8_t timestamp = set_timestamp_counter[set_index];
 
         DPRINTF(CacheRepl, "Sampler ---- Set info: Set index %d, Address Tag: 0x%.8x, Hased PC: 0x%.8x, Current Timestamp: %d\n", set, addr_tag, hashed_pc, timestamp);

@@ -94,6 +94,11 @@ class Base : public SimObject
      * @param pkt Packet that generated this access.
      */
     virtual void reset(const std::shared_ptr<ReplacementData>&
+        replacement_data, const PacketPtr pkt, const ReplacementCandidates& candidates)
+    {
+        reset(replacement_data, pkt);
+    }
+    virtual void reset(const std::shared_ptr<ReplacementData>&
         replacement_data, const PacketPtr pkt)
     {
         reset(replacement_data);

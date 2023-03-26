@@ -46,5 +46,6 @@ Source('ship_rp.cc')
 Source('tree_plru_rp.cc')
 Source('weighted_lru_rp.cc')
 Source('hawkeye_rp.cc')
+Source('mockingjay_rp.cc')
 
 GTest('replaceable_entry.test', 'replaceable_entry.test.cc')
