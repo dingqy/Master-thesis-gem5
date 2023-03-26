@@ -201,11 +201,11 @@ class HawkeyeRP(BaseReplacementPolicy):
     num_cache_ways = Param.Int(16, "Number of target cache ways")
     optgen_vector_size = Param.Int(128, "The size of occupancy vector")
     num_pred_entries = Param.Int(8192, "Number of predictor entries")
-    pred_num_bits_per_entry = Param.Int(
+    num_pred_bits = Param.Int(
         3, "Number of counter bits per entry in predictor"
     )
     num_sampled_sets = Param.Int(300, "Number of sets in sampled cache")
-    timer_size = Param.Int(10, "Number of bits for timestamp")
+    timer_size = Param.Int(1 << 10, "Number of bits for timestamp")
 
 class MockingjayRP(BaseReplacementPolicy):
     """

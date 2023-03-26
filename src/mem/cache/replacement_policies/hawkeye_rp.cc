@@ -21,17 +21,18 @@ Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _l
     //  4. num_cache_ways (Number of target cache ways)
     //  5. optgen_vector_size (The size of occupancy vector)
     //  6. num_pred_entries (Number of predictor entries)
-    //  7. pred_num_bits_per_entry (Number of counter bits per entry in predictor)
+    //  7. num_pred_bits (Number of counter bits per entry in predictor)
     //  8. num_sampled_sets (Number of sets in sampled cache)
-    //  9. timer_size (Number of bits for timer)
-
-    //const int num_sets, const int num_cache_sets, const int cache_block_size
+    //  9. timer_size (The size of timer for recording current timestamp)
+    
     sampler = new HistorySampler(p.num_sampled_sets, p.num_cache_sets, p.cache_block_size, p.timer_size);
-    predictor = new PCBasedPredictor(p.num_pred_entries, p.pred_num_bits_per_entry);
+    predictor = new PCBasedPredictor(p.num_pred_entries, p.num_pred_bits);
     opt_vector = new OccupencyVector(p.num_cache_ways, p.optgen_vector_size);
+
     DPRINTF(CacheRepl, "Cache Initialization ---- Number of Cache Sets: %d, Cache Block Size: %d, Number of Cache Ways: %d\n", p.num_cache_sets, p.cache_block_size, p.num_cache_ways);
-    DPRINTF(CacheRepl, "History Sampler Initialization ---- Number of Sample Sets: %d, Timer Size: %d\n", p.num_pred_entries, p.pred_num_bits_per_entry);
-    DPRINTF(CacheRepl, "Predictor Initialization ---- Number of Predictor Entries: %d, Counter of Predictors: %d\n", p.num_pred_entries, p.pred_num_bits_per_entry);
+    DPRINTF(CacheRepl, "History Sampler Initialization ---- Number of Sample Sets: %d, Timer Size: %d\n", p.num_pred_entries, p.num_pred_bits);
+    DPRINTF(CacheRepl, "Occupancy Vector Initialization ---- Vector size: %d\n", p.optgen_vector_size);
+    DPRINTF(CacheRepl, "Predictor Initialization ---- Number of Predictor Entries: %d, Counter of Predictors: %d\n", p.num_pred_entries, p.num_pred_bits);
 }
 
 Hawkeye::~Hawkeye() {
@@ -62,6 +63,8 @@ ReplaceableEntry* Hawkeye::getVictim(const ReplacementCandidates& candidates) co
                         victim->replacementData)->rrpv;
 
     // Visit all candidates to find victim
+    // If there is no invalid cache line, the one with highest RRPV will be evicted
+    // TODO: Bypass cache should be possible (return nullptr)
     for (const auto& candidate : candidates) {
         std::shared_ptr<HawkeyeReplData> candidate_repl_data =
             std::static_pointer_cast<HawkeyeReplData>(

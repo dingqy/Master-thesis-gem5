@@ -36,6 +36,7 @@
 #include "mem/packet.hh"
 #include "params/BaseReplacementPolicy.hh"
 #include "sim/sim_object.hh"
+#include "mem/cache/cache_blk.hh"
 
 namespace gem5
 {
@@ -73,6 +74,11 @@ class Base : public SimObject
      * @param replacement_data Replacement data to be touched.
      * @param pkt Packet that generated this access.
      */
+    virtual void touch(const std::shared_ptr<ReplacementData>&
+        replacement_data, const PacketPtr pkt, const ReplacementCandidates& candidates)
+    {
+        touch(replacement_data, pkt);
+    }
     virtual void touch(const std::shared_ptr<ReplacementData>&
         replacement_data, const PacketPtr pkt)
     {

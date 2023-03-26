@@ -62,12 +62,14 @@ class Hawkeye : public Base
     /** PC-based Binary Classifier */
     PCBasedPredictor *predictor;
 
+    /** Number of RRPV bits */
     const int _num_rrpv_bits;
 
+    /** Number of bits of cache block size */
     const int _log2_block_size;
 
+    /** Number of bits of Sampled cache set */
     const int _log2_num_sets;
-
 
     /**
      * Invalidate replacement data to set it as the next probable victim.

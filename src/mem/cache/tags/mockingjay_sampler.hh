@@ -84,29 +84,45 @@ class SampledCache
     {
       struct CacheLine ways[NUM_WAY_CACHE_SET];
 
-      void insert(uint16_t addr_tag, uint16_t PC, uint8_t timestamp) {
+      bool insert(uint16_t addr_tag, uint16_t PC, uint8_t timestamp, uint8_t *evict_timestamp, uint16_t *evict_signature) {
         // Assume address and PC has been translated
-        bool debug_insert = false;
+        bool insert_with_evict = false;
+        int evict_way = -1;
 
         for (int i = 0; i < NUM_WAY_CACHE_SET; i++) {
-          if (!ways[i].valid || (ways[i].valid && ways[i].lru == 0)) {
-            for (int j = 0; j < NUM_WAY_CACHE_SET; j++) {
-              if (ways[j].valid && ways[j].lru > 0) {
-                ways[j].lru -= 1;
-              }
-            }
-            ways[i].lru = NUM_WAY_CACHE_SET - 1;
-            ways[i].setAddrTag(addr_tag);
-            ways[i].setPC(PC);
-            ways[i].setTimestamp(timestamp);
-            ways[i].valid = true;
-
-            debug_insert = true;
-            break;
+          if (!ways[i].valid) {
+            evict_way = i;
           }
         }
 
-        gem5_assert(debug_insert, "Sampled cache insert fails");
+        int evict_lru = NUM_WAY_CACHE_SET;
+        if (evict_way < 0) {
+          for (int i = 0; i < NUM_WAY_CACHE_SET; i++) {
+            if (ways[i].valid && ways[i].lru < evict_lru) {
+              evict_lru = ways[i].lru;
+              evict_way = i;
+            } else if (ways[i].lru == evict_lru) {
+              panic("LRU for sampled cache should not have the same value");
+            }
+          }
+          gem5_assert(evict_way >= 0, "There should be one cache line evicted.");
+          insert_with_evict = true;
+        }
+
+        *evict_signature = ways[evict_way].getPC();
+        *evict_timestamp = ways[evict_way].getTimestamp();
+        for (int i = 0; i < NUM_WAY_CACHE_SET; i++) {
+          if (ways[i].valid && ways[i].lru > evict_lru && ways[i].lru > 0) {
+            ways[i].lru -= 1;
+          }
+        }
+        ways[evict_way].lru = NUM_WAY_CACHE_SET - 1;
+        ways[evict_way].setAddrTag(addr_tag);
+        ways[evict_way].setPC(PC);
+        ways[evict_way].setTimestamp(timestamp);
+        ways[evict_way].valid = true;
+
+        return insert_with_evict;
       }
 
       bool access(uint16_t addr_tag, uint16_t PC, uint8_t timestamp, uint16_t *last_PC, uint8_t *last_timestamp) {
@@ -125,6 +141,21 @@ class SampledCache
               }
             }
             ways[i].lru = NUM_WAY_CACHE_SET - 1;
+            return true;
+          }
+        }
+        return false;
+      }
+
+      bool invalidate(uint16_t addr_tag) {
+        for (int i = 0; i < NUM_WAY_CACHE_SET; i++) {
+          if (addr_tag == ways[i].getAddress()) {
+            ways[i].valid = false;
+            for (int j = 0; j < NUM_WAY_CACHE_SET; j++) {
+              if (i != j && ways[j].lru > ways[i].lru) {
+                ways[j].lru -= 1;
+              }
+            }
             return true;
           }
         }
@@ -159,7 +190,7 @@ class SampledCache
 
     ~SampledCache();
 
-    bool sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp, bool hit);
+    bool sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp, bool hit, bool *evict, bool *sample_hit, int core_id);
 
     uint64_t getCurrentTimestamp(int set);
 
@@ -183,15 +214,19 @@ class ReuseDistPredictor
 
     int bits_per_entry = 0;
 
+    int max_rd = 0;
+
+    int _granularity;
+
   public:
 
-    ReuseDistPredictor(const int num_entries, const int bits_per_entry);
+    ReuseDistPredictor(const int num_entries, const int bits_per_entry, const int aging_clock_size);
 
     ~ReuseDistPredictor();
 
     void train(uint64_t last_PC, bool hit);
 
-    bool predict(uint64_t PC, bool hit, uint32_t num_cpus);
+    uint16_t predict(uint64_t PC, bool hit, uint32_t num_cpus, int core_id, uint8_t curr_timestamp, uint8_t last_timestamp, int etr_inf);
 
     int log2_num_entries();
 };

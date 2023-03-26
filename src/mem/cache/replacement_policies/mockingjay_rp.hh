@@ -36,17 +36,21 @@ class Mockingjay : public Base
          */
         int8_t etr;
 
-        int min_etr;
-
-        int max_etr;
+        const int abs_max_etr;
 
         /** Whether the entry is valid. */
         bool valid;
 
+        void aging() {
+          if (std::abs(etr) < abs_max_etr) {
+            etr -= 1;
+          }
+        }
+
         /**
          * Default constructor. Invalidate data.
          */
-        MockingjayReplData(const int num_bits) : etr(0), valid(false), min_etr(-(1 << (num_bits - 1))), max_etr(1 << (num_bits - 1) - 1) {}
+        MockingjayReplData(const int num_bits) : etr(0), valid(false), abs_max_etr((1 << (num_bits - 1)) - 1) {}
     };
 
   public:
@@ -60,15 +64,23 @@ class Mockingjay : public Base
     /** Reuse Distance Predictor */
     ReuseDistPredictor *predictor;
 
-    const unsigned int num_etr_bits;
+    /** Number of bits of ETR counter */
+    const uint32_t _num_etr_bits;
 
-    const uint8_t *age_ctr;
+    /** Clock age counter for each set */
+    uint8_t *age_ctr;
 
+    /** Number of bits of ETR counters */
     const int _num_etr_bits;
 
+    /** Number of bits of cache block size */
     const int _log2_block_size;
 
+    /** Number of bits of sampled cache sets */
     const int _log2_num_sets;
+
+    /** Numer of bits of aging clock */
+    const int _num_clock_bits;
 
     /**
      * Invalidate replacement data to set it as the next probable victim.
@@ -86,6 +98,7 @@ class Mockingjay : public Base
      *
      * @param replacement_data Replacement data to be touched.
      */
+    void touch(const std::shared_ptr<ReplacementData>& replacement_data, const PacketPtr pkt, const ReplacementCandidates& candidates) override;
     void touch(const std::shared_ptr<ReplacementData>& replacement_data, const PacketPtr pkt) override;
     void touch(const std::shared_ptr<ReplacementData>& replacement_data) const override;
 

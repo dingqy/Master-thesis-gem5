@@ -145,8 +145,9 @@ class BaseSetAssoc : public BaseTags
             // Update number of references to accessed block
             blk->increaseRefCount();
 
+            const std::vector<ReplaceableEntry*> entries = indexingPolicy->getPossibleEntries(regenerateBlkAddr(blk));
             // Update replacement data of accessed block
-            replacementPolicy->touch(blk->replacementData, pkt);
+            replacementPolicy->touch(blk->replacementData, pkt, entries);
         }
 
         // The tag lookup latency is the same for a hit or a miss
