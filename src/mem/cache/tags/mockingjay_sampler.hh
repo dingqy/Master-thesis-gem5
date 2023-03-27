@@ -186,7 +186,7 @@ class SampledCache
 
   public:
 
-    SampledCache(const int num_sets, const int num_cache_sets, const int cache_block_size, const int timer_size, const int num_cpu);
+    SampledCache(const int num_sets, const int num_cache_sets, const int cache_block_size, const int timer_size, const int num_cpus);
 
     ~SampledCache();
 
@@ -226,7 +226,7 @@ class ReuseDistPredictor
 
     ~ReuseDistPredictor();
 
-    void train(uint64_t last_PC, bool sampled_cache_hit, uint8_t curr_timestamp, uint8_t last_timestamp);
+    void train(uint64_t last_PC, bool sampled_cache_hit, uint8_t curr_timestamp, uint8_t last_timestamp, bool evict);
 
     uint16_t predict(uint64_t PC, bool hit, int core_id, int etr_inf);
 

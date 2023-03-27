@@ -82,7 +82,7 @@ ReuseDistPredictor::~ReuseDistPredictor() {
     delete[] counters;
 }
 
-void ReuseDistPredictor::train(uint64_t last_PC, bool sampled_cache_hit, uint8_t curr_timestamp, uint8_t last_timestamp) {
+void ReuseDistPredictor::train(uint64_t last_PC, bool sampled_cache_hit, uint8_t curr_timestamp, uint8_t last_timestamp, bool evict) {
     // TODO: Mockingjay train mechanism
     // Sampled cache hit
     //  1. If it first-time train, then use difference directly

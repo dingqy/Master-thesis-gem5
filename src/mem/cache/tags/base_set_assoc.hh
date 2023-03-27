@@ -198,8 +198,10 @@ class BaseSetAssoc : public BaseTags
         // Increment tag counter
         stats.tagsInUse++;
 
+        const std::vector<ReplaceableEntry*> entries = indexingPolicy->getPossibleEntries(regenerateBlkAddr(blk));
+
         // Update replacement policy
-        replacementPolicy->reset(blk->replacementData, pkt);
+        replacementPolicy->reset(blk->replacementData, pkt, entries);
     }
 
     void moveBlock(CacheBlk *src_blk, CacheBlk *dest_blk) override;
