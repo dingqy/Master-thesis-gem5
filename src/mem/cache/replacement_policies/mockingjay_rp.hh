@@ -67,14 +67,17 @@ class Mockingjay : public Base
     /** Clock age counter for each set */
     uint8_t *age_ctr;
 
-    /** Number of bits of cache block size */
+    /** Number of bits of target cache block size */
     int _log2_block_size;
 
-    /** Number of bits of sampled cache sets */
-    int _log2_num_sets;
+    /** Number of bits of target cache sets */
+    int _log2_num_cache_sets;
 
     /** Numer of bits of aging clock */
     int _num_clock_bits;
+
+    /** Enable enforcement policy for cache parition mechanism */
+    bool _cache_partition_on;
 
     /**
      * Invalidate replacement data to set it as the next probable victim.

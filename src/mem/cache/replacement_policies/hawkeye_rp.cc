@@ -13,7 +13,8 @@ namespace replacement_policy
 {
 
 
-Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _log2_block_size((int) std::log2(p.cache_block_size)), _log2_num_sets((int) std::log2(p.num_cache_sets)) {
+Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _log2_block_size((int) std::log2(p.cache_block_size)), _log2_num_cache_sets((int) std::log2(p.num_cache_sets)),
+                                    _cache_partition_on(p.cache_partition_on) {
     // Paramters:
     //  1. num_rrpv_bits (RRPV bits)
     //  2. num_cache_sets (Number of target cache sets)
@@ -115,7 +116,7 @@ void Hawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_data, co
         casted_replacement_data->rrpv.saturate();
     }
 
-    int set = (pkt->getAddr() >> _log2_block_size) & ((1 << _log2_num_sets) - 1);
+    int set = (pkt->getAddr() >> _log2_block_size) & ((1 << _log2_num_cache_sets) - 1);
 
     DPRINTF(CacheRepl, "Cache hit ---- Request Address: 0x%.8x, Set Index: %d, PC: 0x%.8x\n", pkt->getAddr(), set, pkt->req->getPC());
 
@@ -166,7 +167,7 @@ void Hawkeye::reset(const std::shared_ptr<ReplacementData>& replacement_data, co
     DPRINTF(CacheRepl, "Cache miss handling ---- New Cache Line: Friendliness %d RRPV: %d Valid: %d\n", casted_replacement_data->is_cache_friendly, 
             casted_replacement_data->rrpv, casted_replacement_data->valid);
 
-    int set = (pkt->getAddr() >> _log2_block_size) & ((1 << _log2_num_sets) - 1);
+    int set = (pkt->getAddr() >> _log2_block_size) & ((1 << _log2_num_cache_sets) - 1);
 
     DPRINTF(CacheRepl, "Cache miss handling ---- Request Address: 0x%.8x, Set Index: %d, PC: 0x%.8x\n", pkt->getAddr(), set, pkt->req->getPC());
 
