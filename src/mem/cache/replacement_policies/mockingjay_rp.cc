@@ -97,7 +97,7 @@ void Mockingjay::touch(const std::shared_ptr<ReplacementData>& replacement_data,
         std::static_pointer_cast<MockingjayReplData>(replacement_data);
 
     // TODO: Which requests should we monitor?
-    if (!pkt->isDemand() || !pkt->req->hasPC()) {
+    if (!pkt->isDemand() || !pkt->req->hasPC() || !pkt->req->hasContextId()) {
         return;
     }
 
@@ -107,22 +107,6 @@ void Mockingjay::touch(const std::shared_ptr<ReplacementData>& replacement_data,
 
     DPRINTF(CacheRepl, "Cache hit ---- Request Address: 0x%.8x, Set Index: %d, PC: 0x%.8x\n", pkt->getAddr(), set, pkt->req->getPC());
 
-    // If aging clock reaches maximum point, then all cache lines should be aged.
-    uint64_t aging_max = (1 << _num_clock_bits) - 1;
-    if (age_ctr[set] != aging_max) {
-        age_ctr[set] += 1;
-        return;
-    }
-
-    age_ctr[set] = 0;
-
-    for (const auto &candidate : candidates) {
-        std::shared_ptr<MockingjayReplData> candidate_repl_data =
-            std::static_pointer_cast<MockingjayReplData>(
-                candidate->replacementData);
-        candidate_repl_data->aging();
-    }
-
     // Warning: Timestamp is 8-bit integer in this design
     uint8_t curr_timestamp;
     uint8_t last_timestamp;
@@ -130,30 +114,48 @@ void Mockingjay::touch(const std::shared_ptr<ReplacementData>& replacement_data,
     bool evict;
     bool sample_hit;
 
-    // TODO: Where is core id?
     // Cache hit
     // Sampled cache
     //  1. If sampled cache hit, predictor will train with signature in the sampled cache for new reuse distance
     //  2. If sampled cache miss and sampled cache no eviction, no training needed
     //  3. If sampled cache miss and sampled cache eviction, the eviction line should be detrained as scan line
-    if (sampled_cache->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp, true, &evict, &sample_hit, 0)) {
+    if (sampled_cache->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp, true, &evict, &sample_hit, pkt->req->contextId())) {
         predictor->train(last_PC, sample_hit, curr_timestamp, last_timestamp, evict);
         DPRINTF(CacheRepl, "Cache hit ---- Sampler, Last timestamp: %d, Current timestamp: %d, Last PC: %d\n", last_timestamp, curr_timestamp, last_PC);
     }
+
+    // If aging clock reaches maximum point, then all cache lines should be aged.
+    uint64_t aging_max = (1 << _num_clock_bits) - 1;
+    if (age_ctr[set] != aging_max) {
+        age_ctr[set] += 1;
+    } else {
+        age_ctr[set] = 0;
+
+        for (const auto &candidate : candidates) {
+            std::shared_ptr<MockingjayReplData> candidate_repl_data =
+                std::static_pointer_cast<MockingjayReplData>(
+                    candidate->replacementData);
+            candidate_repl_data->aging();
+        }
+    }
+    casted_replacement_data->etr = predictor->predict(pkt->req->getPC(), true, pkt->req->contextId(), casted_replacement_data->abs_max_etr);
 }
 
 std::shared_ptr<ReplacementData> Mockingjay::instantiateEntry() {
     return std::shared_ptr<ReplacementData>(new MockingjayReplData(_num_etr_bits));
 }
 
-void Mockingjay::reset(const std::shared_ptr<ReplacementData>& replacement_data, const PacketPtr pkt,const ReplacementCandidates& candidates) {
+void Mockingjay::reset(const std::shared_ptr<ReplacementData>& replacement_data, const PacketPtr pkt, const ReplacementCandidates& candidates) {
     
     std::shared_ptr<MockingjayReplData> casted_replacement_data =
         std::static_pointer_cast<MockingjayReplData>(replacement_data);
     
-    // TODO: Bypass the cache if possible
     // TODO: Which requests should we monitor?
-    if (!pkt->isDemand() || !pkt->req->hasPC()) {
+    if (!pkt->isDemand() || !pkt->req->hasPC() || !pkt->req->hasContextId()) {
+        return;
+    }
+
+    if (predictor->bypass(pkt->req->getPC(), casted_replacement_data->etr, false, pkt->req->contextId())) {
         return;
     }
 
@@ -163,22 +165,6 @@ void Mockingjay::reset(const std::shared_ptr<ReplacementData>& replacement_data,
 
     DPRINTF(CacheRepl, "Cache hit ---- Request Address: 0x%.8x, Set Index: %d, PC: 0x%.8x\n", pkt->getAddr(), set, pkt->req->getPC());
 
-    // If aging clock reaches maximum point, then all cache lines should be aged.
-    uint64_t aging_max = (1 << _num_clock_bits) - 1;
-    if (age_ctr[set] != aging_max) {
-        age_ctr[set] += 1;
-        return;
-    }
-
-    age_ctr[set] = 0;
-
-    for (const auto &candidate : candidates) {
-        std::shared_ptr<MockingjayReplData> candidate_repl_data =
-            std::static_pointer_cast<MockingjayReplData>(
-                candidate->replacementData);
-        candidate_repl_data->aging();
-    }
-
     // Warning: Timestamp is 8-bit integer in this design
     uint8_t curr_timestamp;
     uint8_t last_timestamp;
@@ -186,15 +172,30 @@ void Mockingjay::reset(const std::shared_ptr<ReplacementData>& replacement_data,
     bool evict;
     bool sample_hit;
 
-    // TODO: Where is core id?
-    if (sampled_cache->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp, false, &evict, &sample_hit, 0)) {
+    if (sampled_cache->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp, false, &evict, &sample_hit, pkt->req->contextId())) {
         predictor->train(last_PC, sample_hit, curr_timestamp, last_timestamp, evict);
         DPRINTF(CacheRepl, "Cache hit ---- Sampler, Last timestamp: %d, Current timestamp: %d, Last PC: %d\n", last_timestamp, curr_timestamp, last_PC);
     }
 
+    // If aging clock reaches maximum point, then all cache lines should be aged.
+    uint64_t aging_max = (1 << _num_clock_bits) - 1;
+    if (age_ctr[set] != aging_max) {
+        age_ctr[set] += 1;
+    } else {
+        age_ctr[set] = 0;
+
+        for (const auto &candidate : candidates) {
+            std::shared_ptr<MockingjayReplData> candidate_repl_data =
+                std::static_pointer_cast<MockingjayReplData>(
+                    candidate->replacementData);
+            candidate_repl_data->aging();
+        }
+    }
+
     // replacement status update
-    // TODO: Where is core id?
-    casted_replacement_data->etr = predictor->predict(pkt->getAddr(), false, 0, casted_replacement_data->abs_max_etr);
+    casted_replacement_data->etr = predictor->predict(pkt->getAddr(), false, pkt->req->contextId(), casted_replacement_data->abs_max_etr);
+    casted_replacement_data->valid = true;
+
 }
 
 void Mockingjay::reset(const std::shared_ptr<ReplacementData>& replacement_data) const {

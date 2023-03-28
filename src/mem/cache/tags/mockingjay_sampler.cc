@@ -113,6 +113,15 @@ uint16_t ReuseDistPredictor::predict(uint64_t PC, bool hit, int core_id, int etr
     }
 }
 
+bool ReuseDistPredictor::bypass(uint64_t PC, uint8_t max_etr, bool hit, int core_id) {
+    uint64_t signature = get_pc_signature(PC, hit, false, core_id, _num_cpus) % num_entries;
+    if ((counters[signature] > max_rd || ((counters[signature] / _granularity) > max_etr)) && counters[signature] != -1) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 int ReuseDistPredictor::log2_num_entries() {
     return (int) std::log2(num_entries);
 }
