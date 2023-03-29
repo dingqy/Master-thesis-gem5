@@ -152,7 +152,6 @@ bool SampledCache::sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, i
         uint64_t set_index = (addr >> _log2_cache_block_size) & ((1 << (_log2_num_sets + log2_num_cache_sets)) - 1);
         uint16_t addr_tag = (addr >> (_log2_cache_block_size + _log2_num_sets + log2_num_cache_sets)) & ADDRESS_TAG_MASK;
 
-        // TODO: Core id is not hashed into PC
         uint16_t hashed_pc = get_pc_signature(PC, hit, false, core_id, _num_cpus) & HASHED_PC_MASK;
         uint8_t timestamp = set_timestamp_counter[set_index];
 

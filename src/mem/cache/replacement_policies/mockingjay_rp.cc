@@ -36,6 +36,7 @@ Mockingjay::Mockingjay(const Params &p) : Base(p), _num_etr_bits(p.num_etr_bits)
     DPRINTF(CacheRepl, "History Sampler Initialization ---- Number of Sample Sets: %d, Timer Size: %d\n", p.num_pred_entries, p.num_pred_bits);
     DPRINTF(CacheRepl, "Predictor Initialization ---- Number of Predictor Entries: %d, Counter of Predictors: %d\n", p.num_pred_entries, p.num_pred_bits);
     DPRINTF(CacheRepl, "CPU Core Initialization ---- Number of Cores: %d\n", p.num_cpus);
+    DPRINTF(CacheRepl, "Partition Initialization ---- Enforcement mechanism: %d\n", p.cache_partition_on);
 }
 
 Mockingjay::~Mockingjay() {
@@ -207,19 +208,19 @@ void Mockingjay::reset(const std::shared_ptr<ReplacementData>& replacement_data,
 }
 
 void Mockingjay::reset(const std::shared_ptr<ReplacementData>& replacement_data) const {
-    panic("Cant train Hawkeye's predictor without access information.");
+    panic("Cant train Mockingjay's predictor without access information.");
 }
 
 void Mockingjay::touch(const std::shared_ptr<ReplacementData>& replacement_data) const {
-    panic("Cant train Hawkeye's predictor without access information.");
+    panic("Cant train Mockingjay's predictor without access information.");
 }
 
 void Mockingjay::reset(const std::shared_ptr<ReplacementData>& replacement_data, const PacketPtr pkt) {
-    panic("Cant train Hawkeye's predictor without all cache blocks reference.");
+    panic("Cant train Mockingjay's predictor without all cache blocks reference.");
 }
 
 void Mockingjay::touch(const std::shared_ptr<ReplacementData>& replacement_data, const PacketPtr pkt) {
-    panic("Cant train Hawkeye's predictor without all cache blocks reference.");
+    panic("Cant train Mockingjay's predictor without all cache blocks reference.");
 }
 
 }

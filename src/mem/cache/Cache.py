@@ -97,7 +97,8 @@ class BaseCache(ClockedObject):
     max_miss_count = Param.Counter(
         0, "Number of misses to handle before calling exit"
     )
-
+    cache_level = Param.Int(-1, "The level of the cache (Used for flock cache partition)")
+    
     mshrs = Param.Unsigned("Number of MSHRs (max outstanding requests)")
     demand_mshr_reserve = Param.Unsigned(1, "MSHRs reserved for demand access")
     tgts_per_mshr = Param.Unsigned("Max number of accesses per MSHR")

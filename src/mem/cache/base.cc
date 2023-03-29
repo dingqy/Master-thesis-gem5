@@ -110,6 +110,7 @@ BaseCache::BaseCache(const BaseCacheParams &p, unsigned blk_size)
       missCount(p.max_miss_count),
       addrRanges(p.addr_ranges.begin(), p.addr_ranges.end()),
       system(p.system),
+      cache_level(p.cache_level),
       stats(*this)
 {
     // the MSHR queue has no reserve entries as we check the MSHR
@@ -246,6 +247,7 @@ BaseCache::handleTimingReqHit(PacketPtr pkt, CacheBlk *blk, Tick request_time)
             // we had missed and just received the response.
             // Request *req2 = new Request(*(pkt->req));
             RequestPtr req2 = std::make_shared<Request>(*(pkt->req));
+            req2->setCacheStats(cache_level, stats.overallAccesses.total(), stats.overallMisses.total());
             PacketPtr pkt2 = new Packet(req2, pkt->cmd);
             MSHR *mshr = allocateMissBuffer(pkt2, curTick(), true);
             // Mark the MSHR "in service" (even though it's not) to prevent
@@ -1231,6 +1233,18 @@ BaseCache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
     // sanity check
     assert(pkt->isRequest());
 
+    // If there are L1 and L2 cache stats, record and recalculate parition budget
+    if (pkt->req->hasL1CacheStats()) {
+        cache_count_l1[0] = pkt->req->getL1CacheAccess();
+        cache_count_l1[1] = pkt->req->getL1CacheMiss();
+    }
+    if (pkt->req->hasL2CacheStats()) {
+        cache_count_l2[0] = pkt->req->getL2CacheAccess();
+        cache_count_l2[1] = pkt->req->getL2CacheMiss();
+    }
+
+    // TODO: Update cache parition status if the value has been changed
+
     gem5_assert(!(isReadOnly && pkt->isWrite()),
                 "Should never see a write in a read-only cache %s\n",
                 name());
@@ -1699,6 +1713,7 @@ BaseCache::writebackBlk(CacheBlk *blk)
 
     RequestPtr req = std::make_shared<Request>(
         regenerateBlkAddr(blk), blkSize, 0, Request::wbRequestorId);
+    req->setCacheStats(cache_level, stats.overallAccesses.total(), stats.overallMisses.total());
 
     if (blk->isSecure())
         req->setFlags(Request::SECURE);
@@ -1742,6 +1757,7 @@ BaseCache::writecleanBlk(CacheBlk *blk, Request::Flags dest, PacketId id)
 {
     RequestPtr req = std::make_shared<Request>(
         regenerateBlkAddr(blk), blkSize, 0, Request::wbRequestorId);
+    req->setCacheStats(cache_level, stats.overallAccesses.total(), stats.overallMisses.total());
 
     if (blk->isSecure()) {
         req->setFlags(Request::SECURE);
@@ -1816,6 +1832,7 @@ BaseCache::writebackVisitor(CacheBlk &blk)
 
         RequestPtr request = std::make_shared<Request>(
             regenerateBlkAddr(&blk), blkSize, 0, Request::funcRequestorId);
+        request->setCacheStats(cache_level, stats.overallAccesses.total(), stats.overallMisses.total());
 
         request->taskId(blk.getTaskId());
         if (blk.isSecure()) {

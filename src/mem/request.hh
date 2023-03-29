@@ -370,6 +370,10 @@ class Request
         VALID_HTM_ABORT_CAUSE = 0x00000400,
         /** Whether or not the instruction count is valid. */
         VALID_INST_COUNT      = 0x00000800,
+        /** Whether L1 cache stats is valid */
+        VALID_CACHE_STATS_L1  = 0x00001000,
+        /** Whether L2 cache stats is valid */
+        VALID_CACHE_STATS_L2  = 0x00002000,
         /**
          * These flags are *not* cleared when a Request object is reused
          * (assigned a new address).
@@ -470,6 +474,18 @@ class Request
     /** The cause for HTM transaction abort */
     HtmFailureFaultCause _htmAbortCause = HtmFailureFaultCause::INVALID;
 
+    /** L1 Cache access count */
+    double cache_access_count_l1 = 0;
+
+    /** L1 Cache miss count */
+    double cache_miss_count_l1 = 0;
+
+    /** L2 Cache access count */
+    double cache_access_count_l2 = 0;
+
+    /** L2 Cache miss count */
+    double cache_miss_count_l2 = 0;
+
   public:
 
     /**
@@ -561,6 +577,33 @@ class Request
         assert(hasStreamId());
         _substreamId = ssid;
         privateFlags.set(VALID_SUBSTREAM_ID);
+    }
+
+    void setCacheStats(int level, double access, double miss)
+    {
+        if (level == 1) {
+            setL1CacheStats(access, miss);
+        } else if (level == 2) {
+            setL2CacheStats(access, miss);
+        } else {
+            return;
+        }
+    }
+
+    void
+    setL1CacheStats(double access, double miss)
+    {
+        cache_access_count_l1 = access;
+        cache_miss_count_l1 = miss;
+        privateFlags.set(privateFlags | VALID_CACHE_STATS_L1);
+    }
+
+    void
+    setL2CacheStats(double access, double miss)
+    {
+        cache_access_count_l2 = access;
+        cache_miss_count_l2 = miss;
+        privateFlags.set(privateFlags | VALID_CACHE_STATS_L2);
     }
 
     /**
@@ -827,6 +870,38 @@ class Request
     hasVaddr() const
     {
         return privateFlags.isSet(VALID_VADDR);
+    }
+
+    bool
+    hasL1CacheStats() const
+    {
+        return privateFlags.isSet(VALID_CACHE_STATS_L1);
+    }
+
+    bool
+    hasL2CacheStats() const
+    {
+        return privateFlags.isSet(VALID_CACHE_STATS_L2);
+    }
+
+    double getL1CacheAccess() 
+    {
+        return cache_access_count_l1;
+    }
+
+    double getL1CacheMiss()
+    {
+        return cache_miss_count_l1;
+    }
+
+    double getL2CacheAccess()
+    {
+        return cache_access_count_l2;
+    }
+
+    double getL2CacheMiss()
+    {
+        return cache_miss_count_l2;
     }
 
     Addr

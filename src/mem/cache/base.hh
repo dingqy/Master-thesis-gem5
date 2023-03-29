@@ -401,6 +401,14 @@ class BaseCache : public ClockedObject
      */
     std::unique_ptr<Packet> pendingDelete;
 
+    double cache_level;
+
+    double cache_count_l1[2]; // 0 - Access Count, 1 - Miss Count
+
+    double cache_count_l2[2]; // 0 - Access Count, 1 - Miss count
+
+    double dram_count[3]; // 0 - total access, 1 - row miss rate, 2 - row hit rate
+
     /**
      * Mark a request as in service (sent downstream in the memory
      * system), effectively making this MSHR the ordering point.
