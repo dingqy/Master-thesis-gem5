@@ -66,14 +66,6 @@ class Hawkeye : public Base
 
     std::unique_ptr<OccupencyVector> proj_vectors;
 
-    uint64_t ratio_counter;
-
-    uint64_t max_ratio_counter;
-
-    int curr_paritition; 
-
-    int curr_context_id;
-
     /** Number of RRPV bits */
     const int _num_rrpv_bits;
 
@@ -86,6 +78,14 @@ class Hawkeye : public Base
     const int _num_cpus;
 
     const int _num_cache_ways;
+
+    uint64_t ratio_counter;
+
+    uint64_t max_ratio_counter;
+
+    int curr_paritition; 
+
+    int curr_context_id;
 
     /** Enable enforcement policy for cache parition mechanism */
     bool _cache_partition_on;

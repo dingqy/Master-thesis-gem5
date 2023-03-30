@@ -75,6 +75,7 @@
 #include "sim/serialize.hh"
 #include "sim/sim_exit.hh"
 #include "sim/system.hh"
+#include "mem/cache/replacement_policies/base.hh"
 
 namespace gem5
 {

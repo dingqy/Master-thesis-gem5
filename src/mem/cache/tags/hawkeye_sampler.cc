@@ -38,7 +38,7 @@ void OccupencyVector::add_prefetch(uint64_t curr_quanta) {
     liveness_history[curr_quanta] = 0;
 }
 
-bool OccupencyVector::should_cache(uint64_t curr_quanta, uint64_t last_quanta, bool projection) {
+bool OccupencyVector::should_cache(uint64_t curr_quanta, uint64_t last_quanta) {
     bool is_cache = true;
 
     if (num_cache.find(CACHE_SIZE) == num_cache.end()) {
@@ -62,7 +62,7 @@ bool OccupencyVector::should_cache(uint64_t curr_quanta, uint64_t last_quanta, b
 
 
     //if ((is_cache) && (last_quanta != curr_quanta))
-    if ((is_cache) && !projection)
+    if ((is_cache))
     {
         i = last_quanta;
         while (i != curr_quanta)

@@ -14,7 +14,8 @@ namespace replacement_policy
 
 
 Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _log2_block_size((int) std::log2(p.cache_block_size)), _log2_num_cache_sets((int) std::log2(p.num_cache_sets)),
-                                    _cache_partition_on(p.cache_partition_on), curr_paritition(p.num_cache_ways), _num_cpus(p.num_cpus), _num_cache_ways(p.num_cache_ways), curr_context_id(0) {
+                                    _num_cpus(p.num_cpus), _num_cache_ways(p.num_cache_ways), ratio_counter(0), max_ratio_counter(0), curr_paritition(p.num_cache_ways), curr_context_id(0), 
+                                    _cache_partition_on(p.cache_partition_on) {
     // Paramters:
     //  1. num_rrpv_bits (RRPV bits)
     //  2. num_cache_sets (Number of target cache sets)
