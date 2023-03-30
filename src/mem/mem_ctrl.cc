@@ -78,7 +78,8 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     backendLatency(p.static_backend_latency),
     commandWindow(p.command_window),
     prevArrival(0),
-    stats(*this)
+    stats(*this),
+    mem_level(p.mem_level)
 {
     DPRINTF(MemCtrl, "Setting up controller\n");
 
@@ -95,6 +96,7 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     if (p.disable_sanity_check) {
         port.disableSanityCheck();
     }
+    _system->addMemStats(mem_level, dram->getMemStats());
 }
 
 void

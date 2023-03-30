@@ -627,6 +627,8 @@ class MemCtrl : public qos::MemCtrl
      */
     std::unique_ptr<Packet> pendingDelete;
 
+    int mem_level;
+
     /**
      * Select either the read or write queue
      *

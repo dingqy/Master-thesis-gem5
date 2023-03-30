@@ -370,10 +370,8 @@ class Request
         VALID_HTM_ABORT_CAUSE = 0x00000400,
         /** Whether or not the instruction count is valid. */
         VALID_INST_COUNT      = 0x00000800,
-        /** Whether L1 cache stats is valid */
-        VALID_CACHE_STATS_L1  = 0x00001000,
-        /** Whether L2 cache stats is valid */
-        VALID_CACHE_STATS_L2  = 0x00002000,
+        /** Whether DRAM stats is valid */
+        VALID_DRAM_STATS      = 0x00001000,
         /**
          * These flags are *not* cleared when a Request object is reused
          * (assigned a new address).
@@ -474,17 +472,16 @@ class Request
     /** The cause for HTM transaction abort */
     HtmFailureFaultCause _htmAbortCause = HtmFailureFaultCause::INVALID;
 
-    /** L1 Cache access count */
-    double cache_access_count_l1 = 0;
+    std::unordered_map<int, std::pair<double, double>> cache_access_stats;
 
-    /** L1 Cache miss count */
-    double cache_miss_count_l1 = 0;
+    /** DRAM total access count */
+    double dram_tot_access_count = 0;
 
-    /** L2 Cache access count */
-    double cache_access_count_l2 = 0;
+    /** DRAM row hit rate */
+    double dram_row_hit_rate = 0;
 
-    /** L2 Cache miss count */
-    double cache_miss_count_l2 = 0;
+    /** DRAM row miss rate */
+    double dram_row_miss_rate = 0;
 
   public:
 
@@ -579,31 +576,19 @@ class Request
         privateFlags.set(VALID_SUBSTREAM_ID);
     }
 
-    void setCacheStats(int level, double access, double miss)
-    {
-        if (level == 1) {
-            setL1CacheStats(access, miss);
-        } else if (level == 2) {
-            setL2CacheStats(access, miss);
-        } else {
-            return;
-        }
+    void 
+    setCacheStats(int level, double access, double miss)
+    {   
+        cache_access_stats[level] = std::make_pair(access, miss);
     }
 
     void
-    setL1CacheStats(double access, double miss)
+    setDRAMStats(double access, double miss_rate, double hit_rate)
     {
-        cache_access_count_l1 = access;
-        cache_miss_count_l1 = miss;
-        privateFlags.set(privateFlags | VALID_CACHE_STATS_L1);
-    }
-
-    void
-    setL2CacheStats(double access, double miss)
-    {
-        cache_access_count_l2 = access;
-        cache_miss_count_l2 = miss;
-        privateFlags.set(privateFlags | VALID_CACHE_STATS_L2);
+        dram_tot_access_count = access;
+        dram_row_miss_rate = miss_rate;
+        dram_row_hit_rate = hit_rate;
+        privateFlags.set(privateFlags | VALID_DRAM_STATS);
     }
 
     /**
@@ -873,35 +858,33 @@ class Request
     }
 
     bool
-    hasL1CacheStats() const
+    hasDRAMStats() const
     {
-        return privateFlags.isSet(VALID_CACHE_STATS_L1);
+        return privateFlags.isSet(VALID_DRAM_STATS);
     }
 
-    bool
-    hasL2CacheStats() const
+    std::pair<double, double> getCacheStats(int level) 
     {
-        return privateFlags.isSet(VALID_CACHE_STATS_L2);
+        if (cache_access_stats.find(level) == cache_access_stats.end()) {
+            return std::make_pair(-1.0, -1.0);
+        } else {
+            return cache_access_stats[level];
+        }
     }
 
-    double getL1CacheAccess() 
+    double getDRAMAccess() 
     {
-        return cache_access_count_l1;
+        return dram_tot_access_count;
     }
 
-    double getL1CacheMiss()
+    double getDRAMHitRate()
     {
-        return cache_miss_count_l1;
+        return dram_row_hit_rate;
     }
 
-    double getL2CacheAccess()
+    double getDRAMMissRate()
     {
-        return cache_access_count_l2;
-    }
-
-    double getL2CacheMiss()
-    {
-        return cache_miss_count_l2;
+        return dram_row_miss_rate;
     }
 
     Addr

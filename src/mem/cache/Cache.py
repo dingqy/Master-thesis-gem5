@@ -98,6 +98,7 @@ class BaseCache(ClockedObject):
         0, "Number of misses to handle before calling exit"
     )
     cache_level = Param.Int(-1, "The level of the cache (Used for flock cache partition)")
+    num_cpus = Param.Int(1, "Tne number of cores in the simulation")
     
     mshrs = Param.Unsigned("Number of MSHRs (max outstanding requests)")
     demand_mshr_reserve = Param.Unsigned(1, "MSHRs reserved for demand access")

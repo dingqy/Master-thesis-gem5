@@ -328,6 +328,8 @@ class System : public SimObject, public PCEventScope
     /** OS kernel */
     Workload *workload = nullptr;
 
+    std::unordered_map<int, statistics::Group*> mem_stats;
+
   public:
     /**
      * Get a pointer to the Kernel Virtual Machine (KVM) SimObject,
@@ -347,6 +349,16 @@ class System : public SimObject, public PCEventScope
 
     /** Amount of physical memory that exists */
     Addr memSize() const;
+
+    void addMemStats(int level, statistics::Group *cache_stats) { mem_stats[level] = cache_stats; }
+
+    statistics::Group* getMemStats(int level) {
+      if (mem_stats.find(level) == mem_stats.end()) {
+        return nullptr;
+      } else {
+        return mem_stats[level];
+      }
+    }
 
     /**
      * Check if a physical address is within a range of a memory that

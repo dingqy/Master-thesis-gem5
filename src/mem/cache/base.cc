@@ -109,8 +109,9 @@ BaseCache::BaseCache(const BaseCacheParams &p, unsigned blk_size)
       noTargetMSHR(nullptr),
       missCount(p.max_miss_count),
       addrRanges(p.addr_ranges.begin(), p.addr_ranges.end()),
-      system(p.system),
       cache_level(p.cache_level),
+      core_cache_stats(std::make_unique<CoreCacheStats[]>(p.num_cpus)),
+      system(p.system),
       stats(*this)
 {
     // the MSHR queue has no reserve entries as we check the MSHR
@@ -135,6 +136,10 @@ BaseCache::BaseCache(const BaseCacheParams &p, unsigned blk_size)
         "Compressed cache %s does not have a compression algorithm", name());
     if (compressor)
         compressor->setCache(this);
+    for (int i = 0; i < p.num_cpus; i++) {
+        core_cache_stats[i].setup(cache_level);
+    }
+    system->addMemStats(cache_level, &stats);
 }
 
 BaseCache::~BaseCache()
@@ -489,6 +494,14 @@ void
 BaseCache::recvTimingResp(PacketPtr pkt)
 {
     assert(pkt->isResponse());
+
+    // if (pkt->req->hasDRAMStats()) {
+    //     dram_count[0] = pkt->req->getDRAMAccess();
+    //     dram_count[1] = pkt->req->getDRAMMissRate();
+    //     dram_count[2] = pkt->req->getDRAMHitRate();
+    // }
+
+    // TODO: Recalculate FCP if DRAM statistics is changed
 
     // all header delay should be paid for by the crossbar, unless
     // this is a prefetch response from above
@@ -1234,14 +1247,14 @@ BaseCache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
     assert(pkt->isRequest());
 
     // If there are L1 and L2 cache stats, record and recalculate parition budget
-    if (pkt->req->hasL1CacheStats()) {
-        cache_count_l1[0] = pkt->req->getL1CacheAccess();
-        cache_count_l1[1] = pkt->req->getL1CacheMiss();
-    }
-    if (pkt->req->hasL2CacheStats()) {
-        cache_count_l2[0] = pkt->req->getL2CacheAccess();
-        cache_count_l2[1] = pkt->req->getL2CacheMiss();
-    }
+    // if (pkt->req->hasContextId()) {
+    //     for (int i = 0; i < cache_level; i++) {
+    //         std::pair<double, double> cache_stats = pkt->req->getCacheStats(i);
+    //         if (cache_stats.first != -1.0 && cache_stats.second != -1.0) {
+    //             core_cache_stats[pkt->req->contextId()].setStats(i, cache_stats.first, cache_stats.second);
+    //         } 
+    //     }
+    // }
 
     // TODO: Update cache parition status if the value has been changed
 

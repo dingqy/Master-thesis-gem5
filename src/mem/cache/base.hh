@@ -138,6 +138,29 @@ class BaseCache : public ClockedObject
         }
     };
 
+    struct CoreCacheStats
+    {
+        std::vector<double> cache_count_access;
+
+        std::vector<double> cache_count_miss;
+
+        int _num_levels;
+
+        void setStats(int level, double access, double miss) {
+            gem5_assert(level < _num_levels, "Cache level should be less than a maximum value");
+            cache_count_access[level] = access;
+            cache_count_miss[level] = miss;
+        }
+
+        void setup(const int num_levels) {
+            _num_levels = num_levels;
+            cache_count_access.resize(num_levels);
+            cache_count_miss.resize(num_levels);
+        }
+
+        CoreCacheStats() : _num_levels(0) {}
+    };
+
   protected:
 
     /**
@@ -400,14 +423,6 @@ class BaseCache : public ClockedObject
      * hold it for deletion until a subsequent call
      */
     std::unique_ptr<Packet> pendingDelete;
-
-    double cache_level;
-
-    double cache_count_l1[2]; // 0 - Access Count, 1 - Miss Count
-
-    double cache_count_l2[2]; // 0 - Access Count, 1 - Miss count
-
-    double dram_count[3]; // 0 - total access, 1 - row miss rate, 2 - row hit rate
 
     /**
      * Mark a request as in service (sent downstream in the memory
@@ -988,6 +1003,12 @@ class BaseCache : public ClockedObject
      * The address range to which the cache responds on the CPU side.
      * Normally this is all possible memory addresses. */
     const AddrRangeList addrRanges;
+
+    double cache_level;
+    
+    std::unique_ptr<CoreCacheStats[]> core_cache_stats;
+
+    double dram_count[3]; // 0 - total access, 1 - row miss rate, 2 - row hit rate
 
   public:
     /** System we are currently operating in. */

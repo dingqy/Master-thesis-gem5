@@ -746,6 +746,8 @@ class DRAMInterface : public MemInterface
         return ranks[pkt->rank]->inRefIdleState();
     }
 
+    statistics::Group* getMemStats() override;
+
     /**
      * This function checks if ranks are actively refreshing and
      * therefore busy. The function also checks if ranks are in

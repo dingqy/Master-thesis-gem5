@@ -343,6 +343,11 @@ DRAMInterface::prechargeBank(Rank& rank_ref, Bank& bank, Tick pre_tick,
     }
 }
 
+
+statistics::Group* DRAMInterface::getMemStats() {
+    return &stats;
+}
+
 std::pair<Tick, Tick>
 DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                              const std::vector<MemPacketQueue>& queue)
