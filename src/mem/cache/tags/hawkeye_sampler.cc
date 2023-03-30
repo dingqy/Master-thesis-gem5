@@ -38,8 +38,15 @@ void OccupencyVector::add_prefetch(uint64_t curr_quanta) {
     liveness_history[curr_quanta] = 0;
 }
 
-bool OccupencyVector::should_cache(uint64_t curr_quanta, uint64_t last_quanta) {
+bool OccupencyVector::should_cache(uint64_t curr_quanta, uint64_t last_quanta, bool projection) {
     bool is_cache = true;
+
+    if (num_cache.find(CACHE_SIZE) == num_cache.end()) {
+        num_cache[CACHE_SIZE] = 0;
+    }
+    if (num_dont_cache.find(CACHE_SIZE) == num_dont_cache.end()) {
+        num_dont_cache[CACHE_SIZE] = 0;
+    }
 
     unsigned int i = last_quanta;
     while (i != curr_quanta)
@@ -55,7 +62,7 @@ bool OccupencyVector::should_cache(uint64_t curr_quanta, uint64_t last_quanta) {
 
 
     //if ((is_cache) && (last_quanta != curr_quanta))
-    if ((is_cache))
+    if ((is_cache) && !projection)
     {
         i = last_quanta;
         while (i != curr_quanta)
@@ -66,17 +73,28 @@ bool OccupencyVector::should_cache(uint64_t curr_quanta, uint64_t last_quanta) {
         assert(i == curr_quanta);
     }
 
-    if (is_cache) num_cache++;
-    else num_dont_cache++;
+    if (is_cache) num_cache[CACHE_SIZE]++;
+    else num_dont_cache[CACHE_SIZE]++;
 
     return is_cache;
 }
 
-uint64_t OccupencyVector::get_num_opt_hits() {
-    return num_cache;
+uint64_t OccupencyVector::get_num_opt_hits(int cache_size) {
+    if (num_cache.find(cache_size) == num_cache.end()) {
+        return 0;
+    }
+    return num_cache[cache_size];
 
     // uint64_t num_opt_misses = access - num_cache;
     // return num_opt_misses;
+}
+
+uint64_t OccupencyVector::get_num_opt_misses(int cache_size) {
+    if (num_dont_cache.find(cache_size) == num_dont_cache.end()) {
+        return 0;
+    }
+    return num_dont_cache[cache_size];
+
 }
 
 PCBasedPredictor::PCBasedPredictor(const int num_entries, const int bits_per_entry): num_entries(num_entries), bits_per_entry(bits_per_entry) {

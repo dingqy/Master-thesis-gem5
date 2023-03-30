@@ -174,6 +174,8 @@ class BaseCache(ClockedObject):
     # in the current cache. Typically, this would be enabled in the
     # data cache.
     write_allocator = Param.WriteAllocator(NULL, "Write allocator")
+    
+    target_mem_level = Param.Int(4, "DRAM level")
 
 
 class Cache(BaseCache):

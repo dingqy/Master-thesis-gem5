@@ -42,10 +42,12 @@ class Hawkeye : public Base
         /** Whether the entry is valid. */
         bool valid;
 
+        int context_id;
+
         /**
          * Default constructor. Invalidate data.
          */
-        HawkeyeReplData(const int num_bits) : rrpv(num_bits), is_cache_friendly(false), valid(false) {}
+        HawkeyeReplData(const int num_bits) : rrpv(num_bits), is_cache_friendly(false), valid(false), context_id(0) {}
     };
 
   public:
@@ -62,6 +64,16 @@ class Hawkeye : public Base
     /** PC-based Binary Classifier */
     PCBasedPredictor *predictor;
 
+    std::unique_ptr<OccupencyVector> proj_vectors;
+
+    uint64_t ratio_counter;
+
+    uint64_t max_ratio_counter;
+
+    int curr_paritition; 
+
+    int curr_context_id;
+
     /** Number of RRPV bits */
     const int _num_rrpv_bits;
 
@@ -70,6 +82,10 @@ class Hawkeye : public Base
 
     /** Number of bits of target cache set */
     const int _log2_num_cache_sets;
+
+    const int _num_cpus;
+
+    const int _num_cache_ways;
 
     /** Enable enforcement policy for cache parition mechanism */
     bool _cache_partition_on;
@@ -117,6 +133,12 @@ class Hawkeye : public Base
      * @return A shared pointer to the new replacement data.
      */
     std::shared_ptr<ReplacementData> instantiateEntry() override;
+
+    std::pair<uint64_t, uint64_t> getProjMiss(int partition, int context_id) override;
+
+    void setPartition(int budget) override;
+
+    void setRatioMax(int max_counter) override;
 };
 
 } // namespace replacement_policy

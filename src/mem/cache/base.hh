@@ -1004,11 +1004,15 @@ class BaseCache : public ClockedObject
      * Normally this is all possible memory addresses. */
     const AddrRangeList addrRanges;
 
-    double cache_level;
+    int cache_level;
     
     std::unique_ptr<CoreCacheStats[]> core_cache_stats;
 
     double dram_count[3]; // 0 - total access, 1 - row miss rate, 2 - row hit rate
+
+    replacement_policy::Base *rp_cache;
+
+    int target_mem_level;
 
   public:
     /** System we are currently operating in. */

@@ -37,6 +37,7 @@
 #include "params/BaseReplacementPolicy.hh"
 #include "sim/sim_object.hh"
 #include "mem/cache/cache_blk.hh"
+#include "base/logging.hh"
 
 namespace gem5
 {
@@ -121,6 +122,25 @@ class Base : public SimObject
      * @return A shared pointer to the new replacement data.
      */
     virtual std::shared_ptr<ReplacementData> instantiateEntry() = 0;
+
+    /**
+     * Two values: Parition miss count for sampled sets, Current miss count for sampled sets
+     */
+    virtual std::pair<uint64_t, uint64_t> getProjMiss(int partition, int context_id) {
+        panic("No support for projection on other cache replacement policy");
+    }
+
+    virtual void setPartition(int budget) {
+        return;
+    }
+
+    virtual void setRatioMax(int max_count) {
+        return;
+    }
+
+    virtual void setContextID(int context_id) {
+        return;
+    }
 };
 
 } // namespace replacement_policy

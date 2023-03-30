@@ -111,6 +111,8 @@ BaseCache::BaseCache(const BaseCacheParams &p, unsigned blk_size)
       addrRanges(p.addr_ranges.begin(), p.addr_ranges.end()),
       cache_level(p.cache_level),
       core_cache_stats(std::make_unique<CoreCacheStats[]>(p.num_cpus)),
+      rp_cache(p.replacement_policy),
+      target_mem_level(p.target_mem_level),
       system(p.system),
       stats(*this)
 {

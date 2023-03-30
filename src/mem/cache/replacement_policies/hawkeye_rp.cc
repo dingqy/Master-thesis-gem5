@@ -14,7 +14,7 @@ namespace replacement_policy
 
 
 Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _log2_block_size((int) std::log2(p.cache_block_size)), _log2_num_cache_sets((int) std::log2(p.num_cache_sets)),
-                                    _cache_partition_on(p.cache_partition_on) {
+                                    _cache_partition_on(p.cache_partition_on), curr_paritition(p.num_cache_ways), _num_cpus(p.num_cpus), _num_cache_ways(p.num_cache_ways), curr_context_id(0) {
     // Paramters:
     //  1. num_rrpv_bits (RRPV bits)
     //  2. num_cache_sets (Number of target cache sets)
@@ -88,6 +88,7 @@ ReplaceableEntry* Hawkeye::getVictim(const ReplacementCandidates& candidates) co
     }
 
     // Update RRPV of all candidates
+    // TODO: Aging this seems to be quite strange in Flock
     for (const auto& candidate : candidates) {
         std::shared_ptr<HawkeyeReplData> temp =
             std::static_pointer_cast<HawkeyeReplData>(candidate->replacementData);
@@ -116,6 +117,7 @@ void Hawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_data, co
     } else {
         casted_replacement_data->rrpv.saturate();
     }
+    casted_replacement_data->context_id = pkt->req->contextId();
 
     int set = (pkt->getAddr() >> _log2_block_size) & ((1 << _log2_num_cache_sets) - 1);
 
@@ -133,8 +135,10 @@ void Hawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_data, co
 
         // sample hit
         predictor->train(last_PC, opt_vector->should_cache(curr_timestamp, last_timestamp));
+        proj_vectors->should_cache(curr_timestamp, last_timestamp);
 
         opt_vector->add_access(curr_timestamp);
+        proj_vectors->add_access(curr_timestamp);
     }
 }
 
@@ -164,6 +168,7 @@ void Hawkeye::reset(const std::shared_ptr<ReplacementData>& replacement_data, co
     }
 
     casted_replacement_data->valid = true;
+    casted_replacement_data->context_id = pkt->req->contextId();
 
     DPRINTF(CacheRepl, "Cache miss handling ---- New Cache Line: Friendliness %d RRPV: %d Valid: %d\n", casted_replacement_data->is_cache_friendly, 
             casted_replacement_data->rrpv, casted_replacement_data->valid);
@@ -183,8 +188,10 @@ void Hawkeye::reset(const std::shared_ptr<ReplacementData>& replacement_data, co
 
         // sample hit
         predictor->train(last_PC, opt_vector->should_cache(curr_timestamp, last_timestamp));
+        proj_vectors->should_cache(curr_timestamp, last_timestamp);
 
         opt_vector->add_access(curr_timestamp);
+        proj_vectors->add_access(curr_timestamp);
     }
 }
 
@@ -195,6 +202,21 @@ void Hawkeye::reset(const std::shared_ptr<ReplacementData>& replacement_data) co
 void Hawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_data) const {
     panic("Cant train Hawkeye's predictor without access information.");
 }
+
+std::pair<uint64_t, uint64_t> Hawkeye::getProjMiss(int partition, int context_id) {
+    return std::make_pair<uint64_t, uint64_t>(proj_vectors->get_num_opt_misses(partition), proj_vectors->get_num_access());
+}
+
+void Hawkeye::setPartition(int budget) {
+    curr_paritition = budget;
+    opt_vector->setCacheSize(budget);
+    proj_vectors->setCacheSize(budget + std::floor(0.1 * _num_cache_ways));
+}
+
+void Hawkeye::setRatioMax(int max_counter) {
+    max_ratio_counter = max_counter;
+}
+
 
 } // namespace replacement_policy
 } // namespace gem5

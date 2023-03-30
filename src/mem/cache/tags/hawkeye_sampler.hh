@@ -9,7 +9,7 @@
 #include <random>
 #include <set>
 #include <vector>
-
+#include <unordered_map>
 #include "base/sat_counter.hh"
 #include "debug/CacheRepl.hh"
 #include "base/trace.hh"
@@ -174,9 +174,9 @@ class OccupencyVector
   private:
     std::vector<unsigned int> liveness_history;
 
-    uint64_t num_cache;
+    std::unordered_map<int, uint64_t> num_cache;
 
-    uint64_t num_dont_cache;
+    std::unordered_map<int, uint64_t> num_dont_cache;
 
     uint64_t access;
 
@@ -195,9 +195,19 @@ class OccupencyVector
 
     bool should_cache(uint64_t curr_quanta, uint64_t last_quanta);
 
-    uint64_t get_num_opt_hits();
+    uint64_t get_num_opt_hits(int cache_size);
+
+    uint64_t get_num_opt_misses(int cache_size);
+
+    uint64_t get_num_access() {
+      return access;
+    }
 
     uint64_t get_vector_size();
+
+    void setCacheSize(uint64_t cache_size) {
+      CACHE_SIZE = cache_size;
+    }
 };
 
 /**
