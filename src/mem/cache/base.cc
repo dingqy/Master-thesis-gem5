@@ -110,9 +110,6 @@ BaseCache::BaseCache(const BaseCacheParams &p, unsigned blk_size)
       missCount(p.max_miss_count),
       addrRanges(p.addr_ranges.begin(), p.addr_ranges.end()),
       cache_level(p.cache_level),
-      core_cache_stats(std::make_unique<CoreCacheStats[]>(p.num_cpus)),
-      rp_cache(p.replacement_policy),
-      target_mem_level(p.target_mem_level),
       system(p.system),
       stats(*this)
 {
@@ -138,9 +135,6 @@ BaseCache::BaseCache(const BaseCacheParams &p, unsigned blk_size)
         "Compressed cache %s does not have a compression algorithm", name());
     if (compressor)
         compressor->setCache(this);
-    for (int i = 0; i < p.num_cpus; i++) {
-        core_cache_stats[i].setup(cache_level);
-    }
     system->addMemStats(cache_level, &stats);
 }
 

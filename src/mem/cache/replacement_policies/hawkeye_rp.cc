@@ -14,8 +14,7 @@ namespace replacement_policy
 
 
 Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _log2_block_size((int) std::log2(p.cache_block_size)), _log2_num_cache_sets((int) std::log2(p.num_cache_sets)),
-                                    _num_cpus(p.num_cpus), _num_cache_ways(p.num_cache_ways), ratio_counter(0), max_ratio_counter(0), curr_paritition(p.num_cache_ways), curr_context_id(0), 
-                                    _cache_partition_on(p.cache_partition_on) {
+                                    _num_cpus(p.num_cpus), _num_cache_ways(p.num_cache_ways), _cache_partition_on(p.cache_partition_on) {
     // Paramters:
     //  1. num_rrpv_bits (RRPV bits)
     //  2. num_cache_sets (Number of target cache sets)
@@ -27,21 +26,26 @@ Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _l
     //  8. num_sampled_sets (Number of sets in sampled cache)
     //  9. timer_size (The size of timer for recording current timestamp)
     
-    sampler = new HistorySampler(p.num_sampled_sets, p.num_cache_sets, p.cache_block_size, p.timer_size);
-    predictor = new PCBasedPredictor(p.num_pred_entries, p.num_pred_bits);
-    opt_vector = new OccupencyVector(p.num_cache_ways, p.optgen_vector_size);
+    int num_hawkeye;
+    if (p.cache_partition_on) {
+        num_hawkeye = p.num_cpus;
+    } else {
+        num_hawkeye = 1;
+    }
+    for (int i = 0; i < num_hawkeye; i++) {
+        samplers.push_back(std::make_unique<HistorySampler>(p.num_sampled_sets, p.num_cache_sets, p.cache_block_size, p.timer_size));
+        predictors.push_back(std::make_unique<PCBasedPredictor>(p.num_pred_entries, p.num_pred_bits));
+        opt_vectors.push_back(std::make_unique<OccupencyVector>(p.num_cache_ways, p.optgen_vector_size));
+        proj_vectors.push_back(std::make_unique<OccupencyVector>(p.num_cache_ways, p.optgen_vector_size));
+    }
+    curr_paritition.resize(p.num_cpus, 0);
+    ratio_counter.resize(p.num_cpus);
 
     DPRINTF(CacheRepl, "Cache Initialization ---- Number of Cache Sets: %d, Cache Block Size: %d, Number of Cache Ways: %d\n", p.num_cache_sets, p.cache_block_size, p.num_cache_ways);
     DPRINTF(CacheRepl, "History Sampler Initialization ---- Number of Sample Sets: %d, Timer Size: %d\n", p.num_pred_entries, p.num_pred_bits);
     DPRINTF(CacheRepl, "Occupancy Vector Initialization ---- Vector size: %d\n", p.optgen_vector_size);
     DPRINTF(CacheRepl, "Predictor Initialization ---- Number of Predictor Entries: %d, Counter of Predictors: %d\n", p.num_pred_entries, p.num_pred_bits);
     DPRINTF(CacheRepl, "Partition Initialization ---- Enforcement mechanism: %d\n", p.cache_partition_on);
-}
-
-Hawkeye::~Hawkeye() {
-    delete sampler;
-    delete predictor;
-    delete opt_vector;
 }
 
 void Hawkeye::invalidate(const std::shared_ptr<ReplacementData> &replacement_data)
@@ -107,8 +111,15 @@ void Hawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_data, co
         std::static_pointer_cast<HawkeyeReplData>(replacement_data);
 
     // TODO: Which requests should we monitor?
-    if (!pkt->req->hasPC()) {
+    if (!pkt->isRequest() || !pkt->req->hasPC() || !pkt->req->hasContextId()) {
         return;
+    }
+
+    int component_index;
+    if (_cache_partition_on) {
+        component_index = pkt->req->contextId();
+    } else {
+        component_index = 0;
     }
 
     DPRINTF(CacheRepl, "Cache hit ---- Packet type having PC: %s\n", pkt->cmdString());
@@ -129,17 +140,17 @@ void Hawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_data, co
     uint8_t last_timestamp;
     uint16_t last_PC;
 
-    if (sampler->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp)) {
-        curr_timestamp = curr_timestamp % opt_vector->get_vector_size();
+    if (samplers[component_index]->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp)) {
+        curr_timestamp = curr_timestamp % opt_vectors[component_index]->get_vector_size();
 
         DPRINTF(CacheRepl, "Cache hit ---- Sampler Hit, Last timestamp: %d, Current timestamp: %d, Last PC: %d\n", last_timestamp, curr_timestamp, last_PC);
 
         // sample hit
-        predictor->train(last_PC, opt_vector->should_cache(curr_timestamp, last_timestamp));
-        proj_vectors->should_cache(curr_timestamp, last_timestamp);
+        predictors[component_index]->train(last_PC, opt_vectors[component_index]->should_cache(curr_timestamp, last_timestamp));
+        proj_vectors[component_index]->should_cache(curr_timestamp, last_timestamp);
 
-        opt_vector->add_access(curr_timestamp);
-        proj_vectors->add_access(curr_timestamp);
+        opt_vectors[component_index]->add_access(curr_timestamp);
+        proj_vectors[component_index]->add_access(curr_timestamp);
     }
 }
 
@@ -152,13 +163,20 @@ void Hawkeye::reset(const std::shared_ptr<ReplacementData>& replacement_data, co
     std::shared_ptr<HawkeyeReplData> casted_replacement_data =
         std::static_pointer_cast<HawkeyeReplData>(replacement_data);
 
-    if (!pkt->req->hasPC()) {
+    if (!pkt->isRequest() || !pkt->req->hasPC() || !pkt->req->hasContextId()) {
         return;
+    }
+
+    int component_index;
+    if (_cache_partition_on) {
+        component_index = pkt->req->contextId();
+    } else {
+        component_index = 0;
     }
 
     DPRINTF(CacheRepl, "Cache miss handling ---- Packet type having PC: %s\n", pkt->cmdString());
 
-    bool is_friendly = predictor->predict(pkt->req->getPC());
+    bool is_friendly = predictors[component_index]->predict(pkt->req->getPC());
 
     casted_replacement_data->is_cache_friendly = is_friendly;
 
@@ -182,17 +200,17 @@ void Hawkeye::reset(const std::shared_ptr<ReplacementData>& replacement_data, co
     uint8_t last_timestamp;
     uint16_t last_PC;
 
-    if (sampler->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp)) {
-        curr_timestamp = curr_timestamp % opt_vector->get_vector_size();
+    if (samplers[component_index]->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp)) {
+        curr_timestamp = curr_timestamp % opt_vectors[component_index]->get_vector_size();
 
         DPRINTF(CacheRepl, "Cache miss handling ---- Sampler Hit, Last timestamp: %d, Current timestamp: %d, Last PC: %d\n", last_timestamp, curr_timestamp, last_PC);
 
         // sample hit
-        predictor->train(last_PC, opt_vector->should_cache(curr_timestamp, last_timestamp));
-        proj_vectors->should_cache(curr_timestamp, last_timestamp);
+        predictors[component_index]->train(last_PC, opt_vectors[component_index]->should_cache(curr_timestamp, last_timestamp));
+        proj_vectors[component_index]->should_cache(curr_timestamp, last_timestamp);
 
-        opt_vector->add_access(curr_timestamp);
-        proj_vectors->add_access(curr_timestamp);
+        opt_vectors[component_index]->add_access(curr_timestamp);
+        proj_vectors[component_index]->add_access(curr_timestamp);
     }
 }
 
@@ -204,20 +222,9 @@ void Hawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_data) co
     panic("Cant train Hawkeye's predictor without access information.");
 }
 
-std::pair<uint64_t, uint64_t> Hawkeye::getProjMiss(int partition, int context_id) {
-    return std::make_pair<uint64_t, uint64_t>(proj_vectors->get_num_opt_misses(partition), proj_vectors->get_num_access());
+void Hawkeye::setSystem(System *system) {
+    _system = system;
 }
-
-void Hawkeye::setPartition(int budget) {
-    curr_paritition = budget;
-    opt_vector->setCacheSize(budget);
-    proj_vectors->setCacheSize(budget + std::floor(0.1 * _num_cache_ways));
-}
-
-void Hawkeye::setRatioMax(int max_counter) {
-    max_ratio_counter = max_counter;
-}
-
 
 } // namespace replacement_policy
 } // namespace gem5

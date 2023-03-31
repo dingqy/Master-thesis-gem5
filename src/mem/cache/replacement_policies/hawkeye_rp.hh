@@ -7,6 +7,8 @@
 #ifndef __MEM_CACHE_REPLACEMENT_POLICIES_HAWKEYE_RP_HH__
 #define __MEM_CACHE_REPLACEMENT_POLICIES_HAWKEYE_RP_HH__
 
+#include <vector>
+
 #include "base/sat_counter.hh"
 #include "base/types.hh"
 #include "mem/cache/replacement_policies/base.hh"
@@ -14,6 +16,8 @@
 
 namespace gem5
 {
+
+class System;
 
 struct HawkeyeRPParams;
 
@@ -50,21 +54,31 @@ class Hawkeye : public Base
         HawkeyeReplData(const int num_bits) : rrpv(num_bits), is_cache_friendly(false), valid(false), context_id(0) {}
     };
 
+    struct RatioCounter {
+      int counter;
+
+      int ratio_max;
+
+      RatioCounter() : counter(0), ratio_max(0) {}
+    };
+
   public:
     typedef HawkeyeRPParams Params;
     Hawkeye(const Params &p);
-    ~Hawkeye();
+    ~Hawkeye() = default;
 
     /** History Sampler */
-    HistorySampler *sampler;
+    std::vector<std::unique_ptr<HistorySampler>> samplers;
 
     /** Occupancy Vector */
-    OccupencyVector *opt_vector;
+    std::vector<std::unique_ptr<OccupencyVector>> opt_vectors;
 
     /** PC-based Binary Classifier */
-    PCBasedPredictor *predictor;
+    std::vector<std::unique_ptr<PCBasedPredictor>> predictors;
 
-    std::unique_ptr<OccupencyVector> proj_vectors;
+    std::vector<std::unique_ptr<OccupencyVector>> proj_vectors;
+
+    System *_system;
 
     /** Number of RRPV bits */
     const int _num_rrpv_bits;
@@ -79,13 +93,10 @@ class Hawkeye : public Base
 
     const int _num_cache_ways;
 
-    uint64_t ratio_counter;
+    // TODO: All per core infomation should be the same replacement policy class
+    std::vector<RatioCounter> ratio_counter;
 
-    uint64_t max_ratio_counter;
-
-    int curr_paritition; 
-
-    int curr_context_id;
+    std::vector<int> curr_paritition; 
 
     /** Enable enforcement policy for cache parition mechanism */
     bool _cache_partition_on;
@@ -134,11 +145,8 @@ class Hawkeye : public Base
      */
     std::shared_ptr<ReplacementData> instantiateEntry() override;
 
-    std::pair<uint64_t, uint64_t> getProjMiss(int partition, int context_id) override;
+    void setSystem(System *system) override;
 
-    void setPartition(int budget) override;
-
-    void setRatioMax(int max_counter) override;
 };
 
 } // namespace replacement_policy

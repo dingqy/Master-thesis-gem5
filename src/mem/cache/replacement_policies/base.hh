@@ -42,6 +42,8 @@
 namespace gem5
 {
 
+class System;
+
 /**
  * Replacement candidates as chosen by the indexing policy.
  */
@@ -123,24 +125,10 @@ class Base : public SimObject
      */
     virtual std::shared_ptr<ReplacementData> instantiateEntry() = 0;
 
-    /**
-     * Two values: Parition miss count for sampled sets, Current miss count for sampled sets
-     */
-    virtual std::pair<uint64_t, uint64_t> getProjMiss(int partition, int context_id) {
-        panic("No support for projection on other cache replacement policy");
-    }
-
-    virtual void setPartition(int budget) {
+    virtual void setSystem(System *system) {
         return;
     }
 
-    virtual void setRatioMax(int max_count) {
-        return;
-    }
-
-    virtual void setContextID(int context_id) {
-        return;
-    }
 };
 
 } // namespace replacement_policy
