@@ -42,6 +42,10 @@ Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _l
     curr_paritition.resize(p.num_cpus, 0);
     ratio_counter.resize(p.num_cpus);
 
+    for (int i = 0; i < p.num_cpus; i++) {
+        cache_stats[std::make_pair(p.cache_level, i)] = std::make_pair(0, 0);
+    }
+
     DPRINTF(CacheRepl, "Cache Initialization ---- Number of Cache Sets: %d, Cache Block Size: %d, Number of Cache Ways: %d\n", p.num_cache_sets, p.cache_block_size, p.num_cache_ways);
     DPRINTF(CacheRepl, "History Sampler Initialization ---- Number of Sample Sets: %d, Timer Size: %d\n", p.num_pred_entries, p.num_pred_bits);
     DPRINTF(CacheRepl, "Occupancy Vector Initialization ---- Vector size: %d\n", p.optgen_vector_size);
@@ -61,7 +65,7 @@ void Hawkeye::invalidate(const std::shared_ptr<ReplacementData> &replacement_dat
     casted_replacement_data->is_cache_friendly = false;
 }
 
-void Hawkeye::access(const PacketPtr pkt) {
+void Hawkeye::access(const PacketPtr pkt, bool hit) {
     if ((pkt->isResponse() || pkt->isRequest()) && pkt->req->hasCacheStats()) {
         std::unordered_map<int, double>::iterator it = pkt->req->getCacheStatsBegin();
         std::unordered_map<int, double>::iterator it_end = pkt->req->getCacheStatsEnd();
@@ -83,6 +87,12 @@ void Hawkeye::access(const PacketPtr pkt) {
             dram_stats[0] = temp_access;
             dram_stats[1] = temp_hit;
         }
+    }
+
+    // TODO: Only count requests?
+    if (pkt->isRequest()) {
+        cache_stats[std::make_pair(_cache_level, pkt->req->contextId())].second += 1;
+        cache_stats[std::make_pair(_cache_level, pkt->req->contextId())].first += (!hit);
     }
 }
 
@@ -249,6 +259,32 @@ void Hawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_data) co
     panic("Cant train Hawkeye's predictor without access information.");
 }
 
+double Hawkeye::getCurrFCP(int core_id) {
+    // TODO: 
+    //  1. I now have miss count for different levels with different contextID
+    //  2. mr1, mr2, and mr3 can be calculated
+    //  3. T2, T3, and Tdram are not quite sured (Can be fixed number or other numbers)
+    return 0.0;
+}
+
+double Hawkeye::getProjFCP(int core_id) {
+    // TODO:
+    //  1. mr1, mr2 is the same as current FCP
+    //  2. miss count under 10% higher partition can be linear interpolation based on current miss count, sampled projected miss count, sampled miss count
+    //  3. T2, and T3 are not quite sured (Can be fixed number or other numbers)
+    //  4. Tdram should based on rowhits, rowmisses, DRAM average latency, sampled projected miss count, sampled miss count, and current miss count
+    return 0.0;
+}
+
+void Hawkeye::setNewPartition() {
+    // TODO:
+    //  Paper: Algorithm 1 Heuristic for Scalable Partitioning
+}
+
+void Hawkeye::setAgingCounter() {
+    // TODO:
+    //  Based on different cache access, set the aging counter
+}
 
 } // namespace replacement_policy
 } // namespace gem5

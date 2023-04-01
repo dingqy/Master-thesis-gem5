@@ -346,7 +346,7 @@ DRAMInterface::prechargeBank(Rank& rank_ref, Bank& bank, Tick pre_tick,
 
 void DRAMInterface::getMemStats(PacketPtr pkt) {
     if (pkt->isRequest() || pkt->isResponse()) {
-        pkt->req->setDRAMStats(stats.readBursts.total() + stats.writeBursts.total(), stats.readRowHits.total() + stats.writeRowHits.total());
+        pkt->req->setDRAMStats(stats.readBursts.total() + stats.writeBursts.total(), stats.readRowHits.total() + stats.writeRowHits.total(), stats.avgMemAccLat.total());
     }
 }
 

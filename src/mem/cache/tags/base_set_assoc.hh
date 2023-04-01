@@ -129,7 +129,7 @@ class BaseSetAssoc : public BaseTags
         CacheBlk *blk = findBlock(pkt->getAddr(), pkt->isSecure());
 
         // TODO: Refresh statistics in replacement policy
-        replacementPolicy->access(pkt);
+        replacementPolicy->access(pkt, blk != nullptr);
 
         // Access all tags in parallel, hence one in each way.  The data side
         // either accesses all blocks in parallel, or one block sequentially on

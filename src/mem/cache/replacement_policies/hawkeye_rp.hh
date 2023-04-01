@@ -77,6 +77,7 @@ class Hawkeye : public Base
     /** PC-based Binary Classifier */
     std::vector<std::unique_ptr<PCBasedPredictor>> predictors;
 
+    /** Projection vectors */
     std::vector<std::unique_ptr<OccupencyVector>> proj_vectors;
 
     /** Number of RRPV bits */
@@ -97,6 +98,7 @@ class Hawkeye : public Base
     // TODO: All per core infomation should be the same replacement policy class
     std::vector<RatioCounter> ratio_counter;
 
+    // Partition budget
     std::vector<int> curr_paritition; 
 
     /** Cache level + CPU id -> Cache miss count + Inst count*/
@@ -107,9 +109,15 @@ class Hawkeye : public Base
 
     Counter dram_stats[2]; // 0 - Access; 1 - Rowhits
 
-    double getCurrFCP();
+    double getCurrFCP(int core_id); 
 
-    void access(const PacketPtr pkt) override;
+    double getProjFCP(int core_id);
+
+    void setNewPartition();
+
+    void setAgingCounter();
+
+    void access(const PacketPtr pkt, bool hit) override;
 
     /**
      * Invalidate replacement data to set it as the next probable victim.

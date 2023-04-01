@@ -1241,16 +1241,6 @@ BaseCache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
     // sanity check
     assert(pkt->isRequest());
 
-    // If there are L1 and L2 cache stats, record and recalculate parition budget
-    // if (pkt->req->hasContextId()) {
-    //     for (int i = 0; i < cache_level; i++) {
-    //         std::pair<double, double> cache_stats = pkt->req->getCacheStats(i);
-    //         if (cache_stats.first != -1.0 && cache_stats.second != -1.0) {
-    //             core_cache_stats[pkt->req->contextId()].setStats(i, cache_stats.first, cache_stats.second);
-    //         } 
-    //     }
-    // }
-
     // TODO: Update cache parition status if the value has been changed
 
     gem5_assert(!(isReadOnly && pkt->isWrite()),

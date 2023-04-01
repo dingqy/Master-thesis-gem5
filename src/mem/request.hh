@@ -484,6 +484,8 @@ class Request
     /** DRAM row miss rate */
     double dram_row_miss = 0;
 
+    double dram_avg_latency = 0;
+
   public:
 
     /**
@@ -584,11 +586,12 @@ class Request
     }
 
     void
-    setDRAMStats(double access, double row_hits)
+    setDRAMStats(double access, double row_hits, double avg_latency)
     {
         dram_row_hit = row_hits;
         dram_tot_access_count = access;
         dram_row_miss = access - row_hits;
+        dram_avg_latency = avg_latency;
         privateFlags.set(privateFlags | VALID_DRAM_STATS);
     }
 
