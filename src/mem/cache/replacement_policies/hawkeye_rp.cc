@@ -14,7 +14,7 @@ namespace replacement_policy
 
 
 Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _log2_block_size((int) std::log2(p.cache_block_size)), _log2_num_cache_sets((int) std::log2(p.num_cache_sets)),
-                                    _num_cpus(p.num_cpus), _num_cache_ways(p.num_cache_ways), _cache_partition_on(p.cache_partition_on) {
+                                    _num_cpus(p.num_cpus), _num_cache_ways(p.num_cache_ways), _cache_partition_on(p.cache_partition_on), _cache_level(p.cache_level) {
     // Paramters:
     //  1. num_rrpv_bits (RRPV bits)
     //  2. num_cache_sets (Number of target cache sets)
@@ -38,6 +38,7 @@ Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _l
         opt_vectors.push_back(std::make_unique<OccupencyVector>(p.num_cache_ways, p.optgen_vector_size));
         proj_vectors.push_back(std::make_unique<OccupencyVector>(p.num_cache_ways, p.optgen_vector_size));
     }
+
     curr_paritition.resize(p.num_cpus, 0);
     ratio_counter.resize(p.num_cpus);
 
@@ -58,6 +59,31 @@ void Hawkeye::invalidate(const std::shared_ptr<ReplacementData> &replacement_dat
     // TODO: If it is sampled cache line, then that cache line should be invalidated also.
     casted_replacement_data->valid = false;
     casted_replacement_data->is_cache_friendly = false;
+}
+
+void Hawkeye::access(const PacketPtr pkt) {
+    if ((pkt->isResponse() || pkt->isRequest()) && pkt->req->hasCacheStats()) {
+        std::unordered_map<int, double>::iterator it = pkt->req->getCacheStatsBegin();
+        std::unordered_map<int, double>::iterator it_end = pkt->req->getCacheStatsEnd();
+
+        for (; it != it_end; it++) {
+            std::pair<int, ContextID> key = std::make_pair(it->first, pkt->req->contextId());
+            if (cache_stats.find(key) != cache_stats.end()) {
+                if (cache_stats[key].first <= ((Counter) it->second) && cache_stats[key].second <= pkt->req->getInstCount()) {
+                    // TODO: Should not update new statistics
+                    cache_stats[key] = std::make_pair((Counter) it->second, pkt->req->getInstCount());
+                }
+            }
+        }
+    }
+    if ((pkt->isResponse() || pkt->isRequest()) && pkt->req->hasDRAMStats()) {
+        Counter temp_access = (Counter) pkt->req->getDRAMAccess();
+        Counter temp_hit = (Counter) pkt->req->getDRAMRowHit();
+        if (temp_access <= dram_stats[0] && temp_hit <= dram_stats[1]) {
+            dram_stats[0] = temp_access;
+            dram_stats[1] = temp_hit;
+        }
+    }
 }
 
 ReplaceableEntry* Hawkeye::getVictim(const ReplacementCandidates& candidates) const {
@@ -94,6 +120,7 @@ ReplaceableEntry* Hawkeye::getVictim(const ReplacementCandidates& candidates) co
 
     // Update RRPV of all candidates
     // TODO: Aging this seems to be quite strange in Flock
+    // TODO: Ratio counter
     for (const auto& candidate : candidates) {
         std::shared_ptr<HawkeyeReplData> temp =
             std::static_pointer_cast<HawkeyeReplData>(candidate->replacementData);
@@ -222,9 +249,6 @@ void Hawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_data) co
     panic("Cant train Hawkeye's predictor without access information.");
 }
 
-void Hawkeye::setSystem(System *system) {
-    _system = system;
-}
 
 } // namespace replacement_policy
 } // namespace gem5

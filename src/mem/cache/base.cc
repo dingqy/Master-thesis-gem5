@@ -135,7 +135,6 @@ BaseCache::BaseCache(const BaseCacheParams &p, unsigned blk_size)
         "Compressed cache %s does not have a compression algorithm", name());
     if (compressor)
         compressor->setCache(this);
-    system->addMemStats(cache_level, &stats);
 }
 
 BaseCache::~BaseCache()
@@ -248,7 +247,7 @@ BaseCache::handleTimingReqHit(PacketPtr pkt, CacheBlk *blk, Tick request_time)
             // we had missed and just received the response.
             // Request *req2 = new Request(*(pkt->req));
             RequestPtr req2 = std::make_shared<Request>(*(pkt->req));
-            req2->setCacheStats(cache_level, stats.overallAccesses.total(), stats.overallMisses.total());
+            req2->setCacheStats(cache_level, stats.overallMisses.total());
             PacketPtr pkt2 = new Packet(req2, pkt->cmd);
             MSHR *mshr = allocateMissBuffer(pkt2, curTick(), true);
             // Mark the MSHR "in service" (even though it's not) to prevent
@@ -1722,7 +1721,7 @@ BaseCache::writebackBlk(CacheBlk *blk)
 
     RequestPtr req = std::make_shared<Request>(
         regenerateBlkAddr(blk), blkSize, 0, Request::wbRequestorId);
-    req->setCacheStats(cache_level, stats.overallAccesses.total(), stats.overallMisses.total());
+    req->setCacheStats(cache_level, stats.overallMisses.total());
 
     if (blk->isSecure())
         req->setFlags(Request::SECURE);
@@ -1766,7 +1765,7 @@ BaseCache::writecleanBlk(CacheBlk *blk, Request::Flags dest, PacketId id)
 {
     RequestPtr req = std::make_shared<Request>(
         regenerateBlkAddr(blk), blkSize, 0, Request::wbRequestorId);
-    req->setCacheStats(cache_level, stats.overallAccesses.total(), stats.overallMisses.total());
+    req->setCacheStats(cache_level, stats.overallMisses.total());
 
     if (blk->isSecure()) {
         req->setFlags(Request::SECURE);
@@ -1841,7 +1840,7 @@ BaseCache::writebackVisitor(CacheBlk &blk)
 
         RequestPtr request = std::make_shared<Request>(
             regenerateBlkAddr(&blk), blkSize, 0, Request::funcRequestorId);
-        request->setCacheStats(cache_level, stats.overallAccesses.total(), stats.overallMisses.total());
+        request->setCacheStats(cache_level, stats.overallMisses.total());
 
         request->taskId(blk.getTaskId());
         if (blk.isSecure()) {

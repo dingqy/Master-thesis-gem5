@@ -96,7 +96,6 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     if (p.disable_sanity_check) {
         port.disableSanityCheck();
     }
-    _system->addMemStats(mem_level, dram->getMemStats());
 }
 
 void
@@ -640,6 +639,7 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
         // Here we reset the timing of the packet before sending it out.
         pkt->headerDelay = pkt->payloadDelay = 0;
 
+        mem_intr->getMemStats(pkt);
         // queue the packet in the response queue to be sent out after
         // the static latency has passed
         port.schedTimingResp(pkt, response_time);

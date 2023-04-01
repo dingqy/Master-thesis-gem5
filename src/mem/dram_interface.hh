@@ -746,7 +746,7 @@ class DRAMInterface : public MemInterface
         return ranks[pkt->rank]->inRefIdleState();
     }
 
-    statistics::Group* getMemStats() override;
+    void getMemStats(PacketPtr pkt) override;
 
     /**
      * This function checks if ranks are actively refreshing and

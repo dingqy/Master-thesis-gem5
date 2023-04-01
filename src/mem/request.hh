@@ -472,16 +472,17 @@ class Request
     /** The cause for HTM transaction abort */
     HtmFailureFaultCause _htmAbortCause = HtmFailureFaultCause::INVALID;
 
-    std::unordered_map<int, std::pair<double, double>> cache_access_stats;
+    /** Level -> Cache Miss */
+    std::unordered_map<int, double> cache_miss_stats;
 
     /** DRAM total access count */
     double dram_tot_access_count = 0;
 
     /** DRAM row hit rate */
-    double dram_row_hit_rate = 0;
+    double dram_row_hit = 0;
 
     /** DRAM row miss rate */
-    double dram_row_miss_rate = 0;
+    double dram_row_miss = 0;
 
   public:
 
@@ -577,17 +578,17 @@ class Request
     }
 
     void 
-    setCacheStats(int level, double access, double miss)
+    setCacheStats(int level, double miss)
     {   
-        cache_access_stats[level] = std::make_pair(access, miss);
+        cache_miss_stats[level] = miss;
     }
 
     void
-    setDRAMStats(double access, double miss_rate, double hit_rate)
+    setDRAMStats(double access, double row_hits)
     {
+        dram_row_hit = row_hits;
         dram_tot_access_count = access;
-        dram_row_miss_rate = miss_rate;
-        dram_row_hit_rate = hit_rate;
+        dram_row_miss = access - row_hits;
         privateFlags.set(privateFlags | VALID_DRAM_STATS);
     }
 
@@ -863,13 +864,22 @@ class Request
         return privateFlags.isSet(VALID_DRAM_STATS);
     }
 
-    std::pair<double, double> getCacheStats(int level) 
+    std::unordered_map<int, double>::iterator
+    getCacheStatsBegin() 
     {
-        if (cache_access_stats.find(level) == cache_access_stats.end()) {
-            return std::make_pair(-1.0, -1.0);
-        } else {
-            return cache_access_stats[level];
-        }
+        return cache_miss_stats.begin();
+    }
+
+    std::unordered_map<int, double>::iterator
+    getCacheStatsEnd() 
+    {
+        return cache_miss_stats.end();
+    }
+
+    bool
+    hasCacheStats() const
+    {
+        return cache_miss_stats.size() != 0;
     }
 
     double getDRAMAccess() 
@@ -877,14 +887,14 @@ class Request
         return dram_tot_access_count;
     }
 
-    double getDRAMHitRate()
+    double getDRAMRowHit()
     {
-        return dram_row_hit_rate;
+        return dram_row_hit;
     }
 
-    double getDRAMMissRate()
+    double getDRAMRowMiss()
     {
-        return dram_row_miss_rate;
+        return dram_row_miss;
     }
 
     Addr

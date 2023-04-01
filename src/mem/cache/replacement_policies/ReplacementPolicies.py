@@ -209,6 +209,7 @@ class HawkeyeRP(BaseReplacementPolicy):
     timer_size = Param.Int(1 << 10, "Number of bits for timestamp")
     cache_partition_on = Param.Bool(False, "Enable cache partition enforcement mechanism")
     num_cpus = Param.Int(1, "Number of CPU cores")
+    cache_level = Param.Int(1, "Cache level")
 
 class MockingjayRP(BaseReplacementPolicy):
     """

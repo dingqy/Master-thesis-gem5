@@ -328,7 +328,7 @@ class MemInterface : public AbstractMemory
     doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                   const std::vector<MemPacketQueue>& queue) = 0;
 
-    virtual statistics::Group* getMemStats() {
+    virtual void getMemStats(PacketPtr pkt) {
         panic("Only DRAM can provide these two stats");
     }
 

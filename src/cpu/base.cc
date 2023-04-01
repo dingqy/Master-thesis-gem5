@@ -179,7 +179,6 @@ BaseCPU::BaseCPU(const Params &p, bool is_checker)
               "of threads (%i).\n", params().isa.size(), numThreads);
     }
 
-    system->addCpuStats(_cpuId, &baseStats);
 }
 
 void

@@ -63,6 +63,11 @@ class Base : public SimObject
     Base(const Params &p) : SimObject(p) {}
     virtual ~Base() = default;
 
+    /** For any access, update the replacement policy */
+    virtual void access(const PacketPtr pkt) {
+        return;
+    }
+
     /**
      * Invalidate replacement data to set it as the next probable victim.
      *
@@ -125,9 +130,6 @@ class Base : public SimObject
      */
     virtual std::shared_ptr<ReplacementData> instantiateEntry() = 0;
 
-    virtual void setSystem(System *system) {
-        return;
-    }
 
 };
 

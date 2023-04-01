@@ -64,8 +64,6 @@ BaseSetAssoc::BaseSetAssoc(const Params &p)
     if (blkSize < 4 || !isPowerOf2(blkSize)) {
         fatal("Block size must be at least 4 and a power of 2");
     }
-
-    replacementPolicy->setSystem(system);
 }
 
 void

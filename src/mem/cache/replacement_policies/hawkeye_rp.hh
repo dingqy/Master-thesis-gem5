@@ -8,6 +8,7 @@
 #define __MEM_CACHE_REPLACEMENT_POLICIES_HAWKEYE_RP_HH__
 
 #include <vector>
+#include <map>
 
 #include "base/sat_counter.hh"
 #include "base/types.hh"
@@ -78,8 +79,6 @@ class Hawkeye : public Base
 
     std::vector<std::unique_ptr<OccupencyVector>> proj_vectors;
 
-    System *_system;
-
     /** Number of RRPV bits */
     const int _num_rrpv_bits;
 
@@ -93,13 +92,24 @@ class Hawkeye : public Base
 
     const int _num_cache_ways;
 
+    const int _cache_level;
+
     // TODO: All per core infomation should be the same replacement policy class
     std::vector<RatioCounter> ratio_counter;
 
     std::vector<int> curr_paritition; 
 
+    /** Cache level + CPU id -> Cache miss count + Inst count*/
+    std::map<std::pair<int, ContextID>, std::pair<Counter, Counter>> cache_stats;
+
     /** Enable enforcement policy for cache parition mechanism */
     bool _cache_partition_on;
+
+    Counter dram_stats[2]; // 0 - Access; 1 - Rowhits
+
+    double getCurrFCP();
+
+    void access(const PacketPtr pkt) override;
 
     /**
      * Invalidate replacement data to set it as the next probable victim.
@@ -144,8 +154,6 @@ class Hawkeye : public Base
      * @return A shared pointer to the new replacement data.
      */
     std::shared_ptr<ReplacementData> instantiateEntry() override;
-
-    void setSystem(System *system) override;
 
 };
 
