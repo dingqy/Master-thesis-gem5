@@ -9,8 +9,6 @@ GEM5_DEPRECATED_NAMESPACE(ReplacementPolicy, replacement_policy);
 namespace replacement_policy
 {
 
-constexpr uint32_t MAX_RD = 104;
-
 /**
  *  Parameters:
  *    1. num_etr_bits (ETR bits)
@@ -120,7 +118,7 @@ void Mockingjay::touch(const std::shared_ptr<ReplacementData>& replacement_data,
     //  1. If sampled cache hit, predictor will train with signature in the sampled cache for new reuse distance
     //  2. If sampled cache miss and sampled cache no eviction, no training needed
     //  3. If sampled cache miss and sampled cache eviction, the eviction line should be detrained as scan line
-    if (sampled_cache->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp, true, &evict, &sample_hit, pkt->req->contextId())) {
+    if (sampled_cache->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp, true, &evict, &sample_hit, pkt->req->contextId(), predictor->getInfRd())) {
         predictor->train(last_PC, sample_hit, curr_timestamp, last_timestamp, evict);
         DPRINTF(CacheRepl, "Cache hit ---- Sampler, Last timestamp: %d, Current timestamp: %d, Last PC: 0x%.8x\n", last_timestamp, curr_timestamp, last_PC);
     }
@@ -181,7 +179,7 @@ void Mockingjay::reset(const std::shared_ptr<ReplacementData>& replacement_data,
     //  1. If sampled cache hit, predictor will train with signature in the sampled cache for new reuse distance
     //  2. If sampled cache miss and sampled cache no eviction, no training needed
     //  3. If sampled cache miss and sampled cache eviction, the eviction line should be detrained as scan line
-    if (sampled_cache->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp, false, &evict, &sample_hit, pkt->req->contextId())) {
+    if (sampled_cache->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp, false, &evict, &sample_hit, pkt->req->contextId(), predictor->getInfRd())) {
         predictor->train(last_PC, sample_hit, curr_timestamp, last_timestamp, evict);
         DPRINTF(CacheRepl, "Cache miss ---- Sampler, Last timestamp: %d, Current timestamp: %d, Last PC: 0x%.8x\n", last_timestamp, curr_timestamp, last_PC);
     }

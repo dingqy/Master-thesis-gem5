@@ -13,13 +13,6 @@ uint64_t CRC_HASH( uint64_t _blockAddress ) {
     return _returnVal;
 }
 
-int time_elapsed(int global, int local) {
-    if (global >= local) {
-        return global - local;
-    }
-    global = global + (1 << TIMESTAMP_LEN);
-    return global - local;
-}
 
 int temporal_difference(int init, int sample, int inf_rd) {
     if (sample > init) {
@@ -89,8 +82,24 @@ void ReuseDistPredictor::train(uint64_t last_PC, bool sampled_cache_hit, uint8_t
     //  2. If it is not first-time train, use temporal difference
     // Sampled cache miss
     //  1. Train as scan (INF_RD)
-    
-    
+    if (sampled_cache_hit) {
+        int sample = time_elapsed(curr_timestamp, last_timestamp);
+        if (sample <= max_value) {
+            if (counters[last_PC] == -1) {
+                counters[last_PC] = sample;
+            } else {
+                counters[last_PC] = temporal_difference(counters[last_PC], sample, max_value);
+            }
+        }
+    } else {
+        if (evict) {
+            if (counters[last_PC] == -1) {
+                counters[last_PC] = max_value;
+            } else {
+                counters[last_PC] = std::min(counters[last_PC] + 1, max_value);
+            }
+        }
+    }
 }
 
 uint16_t ReuseDistPredictor::predict(uint64_t PC, bool hit, int core_id, int etr_inf) {
@@ -122,8 +131,13 @@ bool ReuseDistPredictor::bypass(uint64_t PC, uint8_t max_etr, bool hit, int core
     }
 }
 
-int ReuseDistPredictor::log2_num_entries() {
+int ReuseDistPredictor::getLog2NumEntries() {
     return (int) std::log2(num_entries);
+}
+
+
+int ReuseDistPredictor::getInfRd() {
+    return max_value;
 }
 
 SampledCache::SampledCache(const int num_sets, const int num_cache_sets, const int cache_block_size, const int timer_size, const int num_cpus)
@@ -142,7 +156,7 @@ SampledCache::~SampledCache() {
     delete[] set_timestamp_counter;
 }
 
-bool SampledCache::sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp, bool hit, bool *evict, bool *sampled_hit, int core_id) {
+bool SampledCache::sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp, bool hit, bool *evict, bool *sampled_hit, int core_id, uint64_t inf_rd) {
     int log2_num_cache_sets = (int) std::log2(_num_cache_sets);
 
     if (is_sampled_set(set, log2_num_cache_sets, _log2_num_sets)) {
@@ -164,7 +178,7 @@ bool SampledCache::sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, i
             // TODO: LRU line should be the cache line whose timestamp is larger than INF_RD
             // TODO: Detrain the predictor with any cache line whose timestamp is larger than INF_RD
             set_timestamp_counter[set_index] = (set_timestamp_counter[set_index] + 1) % _timer_size;
-            *evict = sample_data[set_index].insert(addr_tag, hashed_pc, timestamp, last_timestamp, last_PC);
+            *evict = sample_data[set_index].insert(addr_tag, hashed_pc, timestamp, last_timestamp, last_PC, inf_rd);
             *sampled_hit = false;
             DPRINTF(CacheRepl, "Sampler ---- Sampler miss handling: Last timestamp: %d, Current Timestamp: %d\n", last_timestamp, set_timestamp_counter[set_index]);
         } else {

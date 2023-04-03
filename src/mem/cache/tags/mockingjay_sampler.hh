@@ -22,6 +22,13 @@ static constexpr uint64_t TIMESTAMP_LEN_MASK = ((1 << TIMESTAMP_LEN) - 1);
 static constexpr uint32_t ADDRESS_TAG_LEN = 10;
 static constexpr uint64_t ADDRESS_TAG_MASK = ((1 << ADDRESS_TAG_LEN) - 1);
 
+static int time_elapsed(int global, int local) {
+    if (global >= local) {
+        return global - local;
+    }
+    global = global + (1 << TIMESTAMP_LEN);
+    return global - local;
+}
 
 /**
  * Entry: 2-byte Address, 2-byte PC, 1-byte timestamp
@@ -84,10 +91,11 @@ class SampledCache
     {
       struct CacheLine ways[NUM_WAY_CACHE_SET];
 
-      bool insert(uint16_t addr_tag, uint16_t PC, uint8_t timestamp, uint8_t *evict_timestamp, uint16_t *evict_signature) {
+      bool insert(uint16_t addr_tag, uint16_t PC, uint8_t timestamp, uint8_t *evict_timestamp, uint16_t *evict_signature, uint64_t inf_rd) {
         // Assume address and PC has been translated
         bool insert_with_evict = false;
         int evict_way = -1;
+        int evict_lru = NUM_WAY_CACHE_SET;
 
         for (int i = 0; i < NUM_WAY_CACHE_SET; i++) {
           if (!ways[i].valid) {
@@ -95,7 +103,17 @@ class SampledCache
           }
         }
 
-        int evict_lru = NUM_WAY_CACHE_SET;
+        // Only one way will be evicted
+        if (evict_way < 0) {
+          for (int i = 0; i < NUM_WAY_CACHE_SET; i++) {
+            if (time_elapsed(timestamp, ways[i].getTimestamp()) > inf_rd) {
+              evict_way = i;
+              evict_lru = ways[i].lru;
+              insert_with_evict = true;
+            }
+          }
+        }
+
         if (evict_way < 0) {
           for (int i = 0; i < NUM_WAY_CACHE_SET; i++) {
             if (ways[i].valid && ways[i].lru < evict_lru) {
@@ -190,7 +208,7 @@ class SampledCache
 
     ~SampledCache();
 
-    bool sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp, bool hit, bool *evict, bool *sample_hit, int core_id);
+    bool sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp, bool hit, bool *evict, bool *sample_hit, int core_id, uint64_t inf_rd);
 
     uint64_t getCurrentTimestamp(int set);
 
@@ -232,7 +250,9 @@ class ReuseDistPredictor
 
     bool bypass(uint64_t PC, uint8_t max_etr, bool hit, int core_id);
 
-    int log2_num_entries();
+    int getLog2NumEntries();
+
+    int getInfRd();
 };
 
 }
