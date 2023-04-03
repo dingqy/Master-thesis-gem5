@@ -7,6 +7,9 @@
 #ifndef __MEM_CACHE_REPLACEMENT_POLICIES_HAWKEYE_RP_HH__
 #define __MEM_CACHE_REPLACEMENT_POLICIES_HAWKEYE_RP_HH__
 
+#include <vector>
+#include <map>
+
 #include "base/sat_counter.hh"
 #include "base/types.hh"
 #include "mem/cache/replacement_policies/base.hh"
@@ -15,16 +18,18 @@
 namespace gem5
 {
 
-struct HawkeyeRPParams;
+class System;
+
+struct FlockHawkeyeRPParams;
 
 GEM5_DEPRECATED_NAMESPACE(ReplacementPolicy, replacement_policy);
 namespace replacement_policy
 {
 
-class Hawkeye : public Base
+class FlockHawkeye : public Base
 {
   protected:
-    struct HawkeyeReplData : ReplacementData
+    struct FlockHawkeyeReplData : ReplacementData
     {
         /**
          * Re-Reference Interval Prediction Value.
@@ -47,7 +52,7 @@ class Hawkeye : public Base
         /**
          * Default constructor. Invalidate data.
          */
-        HawkeyeReplData(const int num_bits) : rrpv(num_bits), is_cache_friendly(false), valid(false), context_id(0) {}
+        FlockHawkeyeReplData(const int num_bits) : rrpv(num_bits), is_cache_friendly(false), valid(false), context_id(0) {}
     };
 
     struct RatioCounter {
@@ -59,18 +64,21 @@ class Hawkeye : public Base
     };
 
   public:
-    typedef HawkeyeRPParams Params;
-    Hawkeye(const Params &p);
-    ~Hawkeye() = default;
+    typedef FlockHawkeyeRPParams Params;
+    FlockHawkeye(const Params &p);
+    ~FlockHawkeye() = default;
 
     /** History Sampler */
-    std::unique_ptr<HistorySampler> sampler;
+    std::vector<std::unique_ptr<HistorySampler>> samplers;
 
     /** Occupancy Vector */
-    std::unique_ptr<OccupencyVector> opt_vector;
+    std::vector<std::unique_ptr<OccupencyVector>> opt_vectors;
 
     /** PC-based Binary Classifier */
-    std::unique_ptr<PCBasedPredictor> predictor;
+    std::vector<std::unique_ptr<PCBasedPredictor>> predictors;
+
+    /** Projection vectors */
+    std::vector<std::unique_ptr<OccupencyVector>> proj_vectors;
 
     /** Number of RRPV bits */
     const int _num_rrpv_bits;
@@ -86,6 +94,34 @@ class Hawkeye : public Base
     const int _num_cache_ways;
 
     const int _cache_level;
+
+    // TODO: All per core infomation should be the same replacement policy class
+    std::vector<RatioCounter> ratio_counter;
+
+    // Partition budget
+    std::vector<int> curr_partition; 
+
+    /** Cache level + CPU id -> Cache miss count + Inst count*/
+    std::map<std::pair<int, ContextID>, std::pair<Counter, Counter>> cache_stats;
+
+    /** Cache level access latency + Number of cycles */
+    std::map<std::pair<int, ContextID>, double> cache_latency_stats;
+
+    std::map<ContextID, double> cpi_stats;
+
+    Counter dram_stats[2]; // 0 - Access; 1 - Rowhits
+
+    double dram_latency;
+
+    bool dram_ready = false;
+
+    double getCurrFCP(int core_id); 
+
+    double getProjFCP(int core_id);
+
+    void setNewPartition();
+
+    void setAgingCounter();
 
     void access(const PacketPtr pkt, bool hit, const ReplacementCandidates& candidates) override;
 

@@ -146,6 +146,7 @@ bool SampledCache::sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, i
     int log2_num_cache_sets = (int) std::log2(_num_cache_sets);
 
     if (is_sampled_set(set, log2_num_cache_sets, _log2_num_sets)) {
+        
 
         DPRINTF(CacheRepl, "Sampler ---- Set hit: Set index %d\n", set);
 
@@ -160,6 +161,8 @@ bool SampledCache::sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, i
         *curr_timestamp = timestamp;
 
         if (!sample_data[set_index].access(addr_tag, hashed_pc, timestamp, last_PC, last_timestamp)) {
+            // TODO: LRU line should be the cache line whose timestamp is larger than INF_RD
+            // TODO: Detrain the predictor with any cache line whose timestamp is larger than INF_RD
             set_timestamp_counter[set_index] = (set_timestamp_counter[set_index] + 1) % _timer_size;
             *evict = sample_data[set_index].insert(addr_tag, hashed_pc, timestamp, last_timestamp, last_PC);
             *sampled_hit = false;

@@ -243,4 +243,35 @@ class MockingjayRP(BaseReplacementPolicy):
     num_cpus = Param.Int(1, "Number of cores")
     num_clock_bits = Param.Int(3, "Number of bits for aging clock")
     cache_partition_on = Param.Bool(False, "Enable cache partition enforcement mechanism")
-    
+
+class FlockHawkeyeRP(BaseReplacementPolicy):
+    """
+    Parameters:
+        1. num_rrpv_bits (RRPV bits)
+        2. num_cache_sets (Number of target cache sets)
+        3. cache_block_size (Number of target cache block size)
+        4. num_cache_ways (Number of target cache ways)
+        5. optgen_vector_size (The size of occupancy vector)
+        6. num_pred_entries (Number of predictor entries)
+        7. pred_num_bits_per_entry (Number of counter bits per entry in predictor)
+        8. num_sampled_sets (Number of sets in sampled cache)
+        9. timer_size (Number of bits for timestamp)
+    """
+
+    type = "FlockHawkeyeRP"
+    cxx_class = "gem5::replacement_policy::FlockHawkeye"
+    cxx_header = "mem/cache/replacement_policies/flock_hawkeye_rp.hh"
+
+    num_rrpv_bits = Param.Int(3, "Number of bits per RRPV")
+    num_cache_sets = Param.Int(16384, "Number of target cache sets")
+    cache_block_size = Param.Int(64, "Number of target cache block size")
+    num_cache_ways = Param.Int(16, "Number of target cache ways")
+    optgen_vector_size = Param.Int(128, "The size of occupancy vector")
+    num_pred_entries = Param.Int(8192, "Number of predictor entries")
+    num_pred_bits = Param.Int(
+        3, "Number of counter bits per entry in predictor"
+    )
+    num_sampled_sets = Param.Int(300, "Number of sets in sampled cache")
+    timer_size = Param.Int(1 << 10, "Number of bits for timestamp")
+    num_cpus = Param.Int(1, "Number of CPU cores")
+    cache_level = Param.Int(1, "Cache level")
