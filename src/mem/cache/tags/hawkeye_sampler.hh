@@ -17,13 +17,13 @@
 namespace gem5 {
 
 // Warning: Sampled cache way is fixed (8)
-constexpr uint32_t NUM_WAY_CACHE_SET = 8;
-constexpr uint32_t HASHED_PC_LEN = 16;
-constexpr uint64_t HASHED_PC_MASK = ((1 << HASHED_PC_LEN) - 1);
-constexpr uint32_t TIMESTAMP_LEN = 8;
-constexpr uint64_t TIMESTAMP_LEN_MASK = ((1 << TIMESTAMP_LEN) - 1);
-constexpr uint32_t ADDRESS_TAG_LEN = 16;
-constexpr uint64_t ADDRESS_TAG_MASK = ((1 << ADDRESS_TAG_LEN) - 1);
+static constexpr uint32_t NUM_WAY_CACHE_SET = 8;
+static constexpr uint32_t HASHED_PC_LEN = 16;
+static constexpr uint64_t HASHED_PC_MASK = ((1 << HASHED_PC_LEN) - 1);
+static constexpr uint32_t TIMESTAMP_LEN = 8;
+static constexpr uint64_t TIMESTAMP_LEN_MASK = ((1 << TIMESTAMP_LEN) - 1);
+static constexpr uint32_t ADDRESS_TAG_LEN = 16;
+static constexpr uint64_t ADDRESS_TAG_MASK = ((1 << ADDRESS_TAG_LEN) - 1);
 
 
 /**
@@ -207,6 +207,10 @@ class OccupencyVector
 
     void setCacheSize(uint64_t cache_size) {
       CACHE_SIZE = cache_size;
+    }
+
+    uint64_t getCacheSize() {
+      return CACHE_SIZE;
     }
 };
 

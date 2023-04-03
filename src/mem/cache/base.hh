@@ -1043,7 +1043,7 @@ class BaseCache : public ClockedObject
         statistics::Vector missLatency;
         /** The number of accesses per command and thread. */
         statistics::Formula accesses;
-        /** The miss rate per command and thread. */
+        /** Access latency */
         statistics::Formula missRate;
         /** The average miss latency per command and thread. */
         statistics::Formula avgMissLatency;
@@ -1105,6 +1105,9 @@ class BaseCache : public ClockedObject
         statistics::Formula demandMissRate;
         /** The miss rate for all accesses. */
         statistics::Formula overallMissRate;
+        
+        /** The access latency of the cache */
+        statistics::Formula overallAccessLatency;
 
         /** The average miss latency for demand misses. */
         statistics::Formula demandAvgMissLatency;

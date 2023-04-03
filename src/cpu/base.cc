@@ -214,6 +214,11 @@ BaseCPU::armMonitor(ThreadID tid, Addr address)
     DPRINTF(Mwait, "[tid:%d] Armed monitor (vAddr=0x%lx)\n", tid, address);
 }
 
+double
+BaseCPU::getNumCycles() {
+    return baseStats.numCycles.total();
+}
+
 bool
 BaseCPU::mwait(ThreadID tid, PacketPtr pkt)
 {

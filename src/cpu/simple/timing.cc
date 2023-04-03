@@ -1251,6 +1251,7 @@ TimingSimpleCPU::initiateMemMgmtCmd(Request::Flags flags)
     req->setContext(thread->contextId());
     req->taskId(taskId());
     req->setInstCount(t_info.numInst);
+    req->setNumCycles(getNumCycles());
 
     assert(req->isHTMCmd() || req->isTlbiCmd());
 
@@ -1306,6 +1307,7 @@ TimingSimpleCPU::htmSendAbortSignal(ThreadID tid, uint64_t htm_uid,
     req->setContext(thread->contextId());
     req->taskId(taskId());
     req->setInstCount(t_info.numInst);
+    req->setNumCycles(getNumCycles());
     req->setHtmAbortCause(cause);
 
     assert(req->isHTMAbort());

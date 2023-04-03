@@ -99,15 +99,24 @@ class Hawkeye : public Base
     std::vector<RatioCounter> ratio_counter;
 
     // Partition budget
-    std::vector<int> curr_paritition; 
+    std::vector<int> curr_partition; 
 
     /** Cache level + CPU id -> Cache miss count + Inst count*/
     std::map<std::pair<int, ContextID>, std::pair<Counter, Counter>> cache_stats;
+
+    /** Cache level access latency + Number of cycles */
+    std::map<std::pair<int, ContextID>, double> cache_latency_stats;
+
+    std::map<ContextID, double> cpi_stats;
 
     /** Enable enforcement policy for cache parition mechanism */
     bool _cache_partition_on;
 
     Counter dram_stats[2]; // 0 - Access; 1 - Rowhits
+
+    double dram_latency;
+
+    bool dram_ready = false;
 
     double getCurrFCP(int core_id); 
 
@@ -117,7 +126,7 @@ class Hawkeye : public Base
 
     void setAgingCounter();
 
-    void access(const PacketPtr pkt, bool hit) override;
+    void access(const PacketPtr pkt, bool hit, const ReplacementCandidates& candidates) override;
 
     /**
      * Invalidate replacement data to set it as the next probable victim.

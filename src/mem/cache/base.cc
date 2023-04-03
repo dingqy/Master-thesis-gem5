@@ -247,7 +247,7 @@ BaseCache::handleTimingReqHit(PacketPtr pkt, CacheBlk *blk, Tick request_time)
             // we had missed and just received the response.
             // Request *req2 = new Request(*(pkt->req));
             RequestPtr req2 = std::make_shared<Request>(*(pkt->req));
-            req2->setCacheStats(cache_level, stats.overallMisses.total());
+            req2->setCacheStats(cache_level, stats.overallMisses.total(), stats.overallAccessLatency.total());
             PacketPtr pkt2 = new Packet(req2, pkt->cmd);
             MSHR *mshr = allocateMissBuffer(pkt2, curTick(), true);
             // Mark the MSHR "in service" (even though it's not) to prevent
@@ -1711,7 +1711,7 @@ BaseCache::writebackBlk(CacheBlk *blk)
 
     RequestPtr req = std::make_shared<Request>(
         regenerateBlkAddr(blk), blkSize, 0, Request::wbRequestorId);
-    req->setCacheStats(cache_level, stats.overallMisses.total());
+    req->setCacheStats(cache_level, stats.overallMisses.total(), stats.overallAccessLatency.total());
 
     if (blk->isSecure())
         req->setFlags(Request::SECURE);
@@ -1755,7 +1755,7 @@ BaseCache::writecleanBlk(CacheBlk *blk, Request::Flags dest, PacketId id)
 {
     RequestPtr req = std::make_shared<Request>(
         regenerateBlkAddr(blk), blkSize, 0, Request::wbRequestorId);
-    req->setCacheStats(cache_level, stats.overallMisses.total());
+    req->setCacheStats(cache_level, stats.overallMisses.total(), stats.overallAccessLatency.total());
 
     if (blk->isSecure()) {
         req->setFlags(Request::SECURE);
@@ -1830,7 +1830,7 @@ BaseCache::writebackVisitor(CacheBlk &blk)
 
         RequestPtr request = std::make_shared<Request>(
             regenerateBlkAddr(&blk), blkSize, 0, Request::funcRequestorId);
-        request->setCacheStats(cache_level, stats.overallMisses.total());
+        request->setCacheStats(cache_level, stats.overallMisses.total(), stats.overallAccessLatency.total());
 
         request->taskId(blk.getTaskId());
         if (blk.isSecure()) {
@@ -2236,6 +2236,8 @@ BaseCache::CacheStats::CacheStats(BaseCache &c)
              "miss rate for demand accesses"),
     ADD_STAT(overallMissRate, statistics::units::Ratio::get(),
              "miss rate for overall accesses"),
+    ADD_STAT(overallAccessLatency, statistics::units::Count::get(),
+             "average access latency"),
     ADD_STAT(demandAvgMissLatency, statistics::units::Rate<
                 statistics::units::Tick, statistics::units::Count>::get(),
              "average overall miss latency in ticks"),
@@ -2375,6 +2377,12 @@ BaseCache::CacheStats::regStats()
     overallAccesses = overallHits + overallMisses;
     for (int i = 0; i < max_requestors; i++) {
         overallAccesses.subname(i, system->getRequestorName(i));
+    }
+
+    overallAccessLatency.flags(total | nozero | nonan);
+    overallAccessLatency = (overallMisses / overallAccesses) * (overallMissLatency / overallMisses) + (overallHits / overallAccesses) * (overallHitLatency / overallAccesses);
+    for (int i = 0; i < max_requestors; i++) {
+        overallAccessLatency.subname(i, system->getRequestorName(i));
     }
 
     demandMissRate.flags(total | nozero | nonan);

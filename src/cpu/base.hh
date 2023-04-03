@@ -315,6 +315,8 @@ class BaseCPU : public ClockedObject
     void deschedulePowerGatingEvent();
     void schedulePowerGatingEvent();
 
+    double getNumCycles();
+
     /**
      * Prepare for another CPU to take over execution.
      *

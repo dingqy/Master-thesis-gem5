@@ -2,8 +2,8 @@
 
 namespace gem5 {
 
-constexpr double TEMP_DIFFERENCE = 1.0 / 16.0;
-constexpr int MAXRD_THRESHOLD = 22;
+static constexpr double TEMP_DIFFERENCE = 1.0 / 16.0;
+static constexpr int MAXRD_THRESHOLD = 22;
 
 uint64_t CRC_HASH( uint64_t _blockAddress ) {
     static const unsigned long long crcPolynomial = 3988292384ULL;

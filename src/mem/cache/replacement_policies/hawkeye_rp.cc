@@ -14,7 +14,7 @@ namespace replacement_policy
 
 
 Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _log2_block_size((int) std::log2(p.cache_block_size)), _log2_num_cache_sets((int) std::log2(p.num_cache_sets)),
-                                    _num_cpus(p.num_cpus), _num_cache_ways(p.num_cache_ways), _cache_partition_on(p.cache_partition_on), _cache_level(p.cache_level) {
+                                    _num_cpus(p.num_cpus), _num_cache_ways(p.num_cache_ways), _cache_level(p.cache_level), _cache_partition_on(p.cache_partition_on), dram_latency(0) {
     // Paramters:
     //  1. num_rrpv_bits (RRPV bits)
     //  2. num_cache_sets (Number of target cache sets)
@@ -32,6 +32,10 @@ Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _l
     } else {
         num_hawkeye = 1;
     }
+
+    dram_stats[0] = 0;
+    dram_stats[1] = 0;
+    
     for (int i = 0; i < num_hawkeye; i++) {
         samplers.push_back(std::make_unique<HistorySampler>(p.num_sampled_sets, p.num_cache_sets, p.cache_block_size, p.timer_size));
         predictors.push_back(std::make_unique<PCBasedPredictor>(p.num_pred_entries, p.num_pred_bits));
@@ -39,7 +43,7 @@ Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _l
         proj_vectors.push_back(std::make_unique<OccupencyVector>(p.num_cache_ways, p.optgen_vector_size));
     }
 
-    curr_paritition.resize(p.num_cpus, 0);
+    curr_partition.resize(p.num_cpus, 0);
     ratio_counter.resize(p.num_cpus);
 
     for (int i = 0; i < p.num_cpus; i++) {
@@ -65,34 +69,63 @@ void Hawkeye::invalidate(const std::shared_ptr<ReplacementData> &replacement_dat
     casted_replacement_data->is_cache_friendly = false;
 }
 
-void Hawkeye::access(const PacketPtr pkt, bool hit) {
-    if ((pkt->isResponse() || pkt->isRequest()) && pkt->req->hasCacheStats()) {
-        std::unordered_map<int, double>::iterator it = pkt->req->getCacheStatsBegin();
-        std::unordered_map<int, double>::iterator it_end = pkt->req->getCacheStatsEnd();
+void Hawkeye::access(const PacketPtr pkt, bool hit, const ReplacementCandidates& candidates) {
+    if (!_cache_partition_on) {
+        return;
+    }
+    if (pkt->isRequest() && pkt->req->hasCacheStats()) {
+        std::unordered_map<int, std::pair<double, double>>::iterator it = pkt->req->getCacheStatsBegin();
+        std::unordered_map<int, std::pair<double, double>>::iterator it_end = pkt->req->getCacheStatsEnd();
 
         for (; it != it_end; it++) {
             std::pair<int, ContextID> key = std::make_pair(it->first, pkt->req->contextId());
             if (cache_stats.find(key) != cache_stats.end()) {
-                if (cache_stats[key].first <= ((Counter) it->second) && cache_stats[key].second <= pkt->req->getInstCount()) {
+                if (cache_stats[key].first <= ((Counter) it->second.first) && cache_stats[key].second <= pkt->req->getInstCount()) {
                     // TODO: Should not update new statistics
-                    cache_stats[key] = std::make_pair((Counter) it->second, pkt->req->getInstCount());
+                    cache_stats[key] = std::make_pair((Counter) it->second.first, pkt->req->getInstCount());
+                    cache_latency_stats[key] = it->second.second;
                 }
             }
         }
     }
-    if ((pkt->isResponse() || pkt->isRequest()) && pkt->req->hasDRAMStats()) {
+
+    if (pkt->isResponse() && pkt->req->hasDRAMStats()) {
         Counter temp_access = (Counter) pkt->req->getDRAMAccess();
         Counter temp_hit = (Counter) pkt->req->getDRAMRowHit();
         if (temp_access <= dram_stats[0] && temp_hit <= dram_stats[1]) {
             dram_stats[0] = temp_access;
             dram_stats[1] = temp_hit;
+            dram_latency = pkt->req->getAccessLatency();
+            dram_ready = true;
         }
     }
 
     // TODO: Only count requests?
+    // Miss count + Access count (This is different from higher level caches)
     if (pkt->isRequest()) {
         cache_stats[std::make_pair(_cache_level, pkt->req->contextId())].second += 1;
         cache_stats[std::make_pair(_cache_level, pkt->req->contextId())].first += (!hit);
+    }
+
+    if (pkt->isRequest() && pkt->req->hasContextId() && pkt->req->hasInstCount() && pkt->req->hasNumCycles()) {
+        cpi_stats[pkt->req->contextId()] = pkt->req->getNumCycles() / pkt->req->getInstCount();
+    }
+
+    for (int i = 0; i < _num_cpus; i++) {
+        if (ratio_counter[i].counter >= ratio_counter[i].ratio_max) {
+            for (const auto& candidate : candidates) {
+                std::shared_ptr<HawkeyeReplData> candidate_repl_data =
+                    std::static_pointer_cast<HawkeyeReplData>(
+                        candidate->replacementData);
+                // TODO: Is saturated counter support comparison?
+                if (candidate_repl_data->valid && candidate_repl_data->context_id == i && candidate_repl_data->rrpv < 6) {
+                    candidate_repl_data->rrpv++;
+                }
+            }
+            ratio_counter[i].counter = 0;   
+        } else {
+            ratio_counter[i].counter += 1;
+        }
     }
 }
 
@@ -131,13 +164,16 @@ ReplaceableEntry* Hawkeye::getVictim(const ReplacementCandidates& candidates) co
     // Update RRPV of all candidates
     // TODO: Aging this seems to be quite strange in Flock
     // TODO: Ratio counter
-    for (const auto& candidate : candidates) {
-        std::shared_ptr<HawkeyeReplData> temp =
-            std::static_pointer_cast<HawkeyeReplData>(candidate->replacementData);
-        if (temp->valid && temp->is_cache_friendly && temp->rrpv < 6) {
-            temp->rrpv++;
+    if (!_cache_partition_on) {
+        for (const auto& candidate : candidates) {
+            std::shared_ptr<HawkeyeReplData> temp =
+                std::static_pointer_cast<HawkeyeReplData>(candidate->replacementData);
+            // TODO: Is saturated counter support comparison?
+            if (temp->valid && temp->is_cache_friendly && temp->rrpv < 6) {
+                temp->rrpv++;
+            }
+            panic_if(temp->rrpv > 6 && temp->is_cache_friendly, "Friendly cache should never be the maximum value of RRPV (6)");
         }
-        panic_if(temp->rrpv > 6 && temp->is_cache_friendly, "Friendly cache should never be the maximum value of RRPV (6)");
     }
 
     return victim;
@@ -264,7 +300,45 @@ double Hawkeye::getCurrFCP(int core_id) {
     //  1. I now have miss count for different levels with different contextID
     //  2. mr1, mr2, and mr3 can be calculated
     //  3. T2, T3, and Tdram are not quite sured (Can be fixed number or other numbers)
-    return 0.0;
+    // Level 0 and Level 1
+    std::pair<int, ContextID> key_l1i = std::make_pair(0, core_id);
+    std::pair<int, ContextID> key_l1d = std::make_pair(1, core_id);
+    if (cache_stats.find(key_l1i) == cache_stats.end() || cache_stats.find(key_l1d) == cache_stats.end()) {
+        return -1.0;
+    }
+    // TODO: How to combine L1I and L1D
+    Counter misses_l1 = cache_stats[key_l1i].first + cache_stats[key_l1d].first;
+    Counter inst_l1 = std::max(cache_stats[key_l1i].second, cache_stats[key_l1d].second);
+    double mr1 = ((double) misses_l1) / ((double) inst_l1);
+
+    // Level 2
+    std::pair<int, ContextID> key_l2 = std::make_pair(2, core_id);
+    if (cache_stats.find(key_l2) == cache_stats.end()) {
+        return -1.0;
+    }
+    Counter misses_l2 = cache_stats[key_l2].first + cache_stats[key_l2].first;
+    Counter inst_l2 = cache_stats[key_l2].second;
+    double mr2 = ((double) misses_l2) / ((double) inst_l2);
+    
+    // Level 3
+    std::pair<int, ContextID> key_l3 = std::make_pair(_cache_level, core_id);
+    if (cache_stats.find(key_l3) == cache_stats.end()) {
+        return -1.0;
+    }
+    Counter misses_l3 = cache_stats[key_l3].first + cache_stats[key_l3].first;
+    Counter inst_l3 = cache_stats[key_l3].second;
+    double mr3 = ((double) misses_l3) / ((double) inst_l3);
+
+    // DRAM
+    if (!dram_ready) {
+        return -1.0;
+    }
+
+    gem5_assert(mr1 >= mr2, "Miss rate difference can not be negative");
+    gem5_assert(mr2 >= mr3, "Miss rate difference can not be negative");
+    double fcp = (mr1 - mr2) * cache_latency_stats[key_l2] + (mr2 - mr3) * cache_latency_stats[key_l3] + mr3 * dram_latency;
+    
+    return fcp;
 }
 
 double Hawkeye::getProjFCP(int core_id) {
@@ -273,17 +347,108 @@ double Hawkeye::getProjFCP(int core_id) {
     //  2. miss count under 10% higher partition can be linear interpolation based on current miss count, sampled projected miss count, sampled miss count
     //  3. T2, and T3 are not quite sured (Can be fixed number or other numbers)
     //  4. Tdram should based on rowhits, rowmisses, DRAM average latency, sampled projected miss count, sampled miss count, and current miss count
-    return 0.0;
+
+
+    // Level 0 and Level 1
+    std::pair<int, ContextID> key_l1i = std::make_pair(0, core_id);
+    std::pair<int, ContextID> key_l1d = std::make_pair(1, core_id);
+    if (cache_stats.find(key_l1i) == cache_stats.end() || cache_stats.find(key_l1d) == cache_stats.end()) {
+        return -1.0;
+    }
+    // TODO: How to combine L1I and L1D
+    Counter misses_l1 = cache_stats[key_l1i].first + cache_stats[key_l1d].first;
+    Counter inst_l1 = std::max(cache_stats[key_l1i].second, cache_stats[key_l1d].second);
+    double mr1 = ((double) misses_l1) / ((double) inst_l1);
+
+    // Level 2
+    std::pair<int, ContextID> key_l2 = std::make_pair(2, core_id);
+    if (cache_stats.find(key_l2) == cache_stats.end()) {
+        return -1.0;
+    }
+    Counter misses_l2 = cache_stats[key_l2].first + cache_stats[key_l2].first;
+    Counter inst_l2 = cache_stats[key_l2].second;
+    double mr2 = ((double) misses_l2) / ((double) inst_l2);
+    
+    // Level 3
+    std::pair<int, ContextID> key_l3 = std::make_pair(_cache_level, core_id);
+    if (cache_stats.find(key_l3) == cache_stats.end()) {
+        return -1.0;
+    }
+    Counter misses_l3 = cache_stats[key_l3].first + cache_stats[key_l3].first;
+    Counter inst_l3 = cache_stats[key_l3].second;
+    double mr3 = ((double) misses_l3) / ((double) inst_l3);
+
+    double frac = proj_vectors[core_id]->get_num_opt_misses(proj_vectors[core_id]->getCacheSize()) / opt_vectors[core_id]->get_num_opt_misses(opt_vectors[core_id]->getCacheSize());
+    double mr3_proj = frac * mr3;
+
+    // DRAM
+    if (!dram_ready) {
+        return -1.0;
+    }
+    double est_miss_count = mr3_proj * inst_l3;
+    double dram_latency_proj = ((dram_stats[0] - dram_stats[1]) / dram_stats[1]) * (est_miss_count / (double) misses_l3) * dram_latency;
+    
+    gem5_assert(mr1 >= mr2, "Miss rate difference can not be negative");
+    gem5_assert(mr2 >= mr3, "Miss rate difference can not be negative");
+    double fcp = (mr1 - mr2) * cache_latency_stats[key_l2] + (mr2 - mr3_proj) * cache_latency_stats[key_l3] + mr3_proj * dram_latency_proj;
+    
+    return fcp;
 }
 
 void Hawkeye::setNewPartition() {
     // TODO:
     //  Paper: Algorithm 1 Heuristic for Scalable Partitioning
+
+    int total_credit = 0;
+    for (auto &i : curr_partition) {
+        total_credit += i;
+    }    
+    if (total_credit > 0) {
+        int max_core_id = -1;
+        double max_gain = 0.0;
+        for (int i = 0; i < _num_cpus; i++) {
+            int curr_idx_partition = curr_partition[i];
+            int gain = (getProjFCP(i) - getCurrFCP(i)) / cpi_stats[i];
+            if (gain > max_gain) {
+                max_gain = gain;
+                max_core_id = i;
+            }
+        }
+        
+        gem5_assert(max_core_id != 1, "If there is partition budget, it should be dispatched");
+        int new_partition = curr_partition[max_core_id] + std::floor(0.1 * _num_cache_ways);
+        curr_partition[max_core_id] = new_partition;
+        opt_vectors[max_core_id]->setCacheSize(curr_partition[max_core_id]);
+
+        // TODO: Allow reduce partition size
+        proj_vectors[max_core_id]->setCacheSize(std::min(_num_cache_ways, new_partition));
+    }
 }
 
 void Hawkeye::setAgingCounter() {
     // TODO:
     //  Based on different cache access, set the aging counter
+    int min_access_idx = -1;
+    Counter min_access = 0;
+
+    for (int i = 0; i < _num_cpus; i++) {
+        std::pair<int, ContextID> key = std::make_pair(_cache_level, i);
+        if (cache_stats[key].second != 0 && cache_stats[key].second > min_access) {
+            min_access_idx = i;
+            min_access = cache_stats[key].second;
+        }
+    }
+
+    if (min_access_idx != -1) {
+        for (int i = 0; i < _num_cpus; i++) {
+            std::pair<int, ContextID> key = std::make_pair(_cache_level, i);
+            if (cache_stats[key].second != 0) {
+                ratio_counter[i].ratio_max = cache_stats[key].second / min_access - 1;
+                gem5_assert(ratio_counter[i].ratio_max >= 0, "Ratio counter cannot be negative");
+            }
+        }
+    }
+
 }
 
 } // namespace replacement_policy

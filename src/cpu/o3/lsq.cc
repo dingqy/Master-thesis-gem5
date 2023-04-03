@@ -1457,6 +1457,7 @@ LSQ::UnsquashableDirectRequest::initiateTranslation()
         _reqs.back()->taskId(_taskId);
         _reqs.back()->setPaddr(_addr);
         _reqs.back()->setInstCount(_inst->getCpuPtr()->totalInsts());
+        _reqs.back()->setNumCycles(_inst->getCpuPtr()->getNumCycles());
 
         _inst->strictlyOrdered(_reqs.back()->isStrictlyOrdered());
         _inst->fault = NoFault;

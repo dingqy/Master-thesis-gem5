@@ -372,6 +372,7 @@ class Request
         VALID_INST_COUNT      = 0x00000800,
         /** Whether DRAM stats is valid */
         VALID_DRAM_STATS      = 0x00001000,
+        VALID_INST_CYCLES     = 0x00002000,
         /**
          * These flags are *not* cleared when a Request object is reused
          * (assigned a new address).
@@ -473,7 +474,9 @@ class Request
     HtmFailureFaultCause _htmAbortCause = HtmFailureFaultCause::INVALID;
 
     /** Level -> Cache Miss */
-    std::unordered_map<int, double> cache_miss_stats;
+    std::unordered_map<int, std::pair<double, double>> cache_miss_stats;
+
+    double num_cycles = 0;
 
     /** DRAM total access count */
     double dram_tot_access_count = 0;
@@ -580,9 +583,20 @@ class Request
     }
 
     void 
-    setCacheStats(int level, double miss)
+    setCacheStats(int level, double miss, double avg_latency)
     {   
-        cache_miss_stats[level] = miss;
+        cache_miss_stats[level] = std::make_pair(miss, avg_latency);
+    }
+
+    void
+    setNumCycles(double cycles) {
+        num_cycles = cycles;
+        privateFlags.set(VALID_INST_CYCLES);
+    }
+
+    double
+    getNumCycles() {
+        return num_cycles;
     }
 
     void
@@ -867,13 +881,13 @@ class Request
         return privateFlags.isSet(VALID_DRAM_STATS);
     }
 
-    std::unordered_map<int, double>::iterator
+    std::unordered_map<int, std::pair<double, double>>::iterator
     getCacheStatsBegin() 
     {
         return cache_miss_stats.begin();
     }
 
-    std::unordered_map<int, double>::iterator
+    std::unordered_map<int, std::pair<double, double>>::iterator
     getCacheStatsEnd() 
     {
         return cache_miss_stats.end();
@@ -883,6 +897,12 @@ class Request
     hasCacheStats() const
     {
         return cache_miss_stats.size() != 0;
+    }
+
+    bool
+    hasNumCycles() const
+    {
+        return privateFlags.isSet(VALID_INST_CYCLES);
     }
 
     double getDRAMAccess() 
@@ -898,6 +918,11 @@ class Request
     double getDRAMRowMiss()
     {
         return dram_row_miss;
+    }
+
+    double getDRAMAccessLatency()
+    {
+        return dram_avg_latency;
     }
 
     Addr

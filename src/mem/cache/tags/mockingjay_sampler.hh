@@ -14,13 +14,13 @@
 
 namespace gem5 {
 
-constexpr uint32_t NUM_WAY_CACHE_SET = 5;
-constexpr uint32_t HASHED_PC_LEN = 11;
-constexpr uint64_t HASHED_PC_MASK = ((1 << HASHED_PC_LEN) - 1);
-constexpr uint32_t TIMESTAMP_LEN = 8;
-constexpr uint64_t TIMESTAMP_LEN_MASK = ((1 << TIMESTAMP_LEN) - 1);
-constexpr uint32_t ADDRESS_TAG_LEN = 10;
-constexpr uint64_t ADDRESS_TAG_MASK = ((1 << ADDRESS_TAG_LEN) - 1);
+static constexpr uint32_t NUM_WAY_CACHE_SET = 5;
+static constexpr uint32_t HASHED_PC_LEN = 11;
+static constexpr uint64_t HASHED_PC_MASK = ((1 << HASHED_PC_LEN) - 1);
+static constexpr uint32_t TIMESTAMP_LEN = 8;
+static constexpr uint64_t TIMESTAMP_LEN_MASK = ((1 << TIMESTAMP_LEN) - 1);
+static constexpr uint32_t ADDRESS_TAG_LEN = 10;
+static constexpr uint64_t ADDRESS_TAG_MASK = ((1 << ADDRESS_TAG_LEN) - 1);
 
 
 /**

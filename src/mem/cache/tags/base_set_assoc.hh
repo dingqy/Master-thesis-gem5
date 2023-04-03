@@ -128,8 +128,10 @@ class BaseSetAssoc : public BaseTags
     {
         CacheBlk *blk = findBlock(pkt->getAddr(), pkt->isSecure());
 
+        const std::vector<ReplaceableEntry*> entries = indexingPolicy->getPossibleEntries(regenerateBlkAddr(blk));
+
         // TODO: Refresh statistics in replacement policy
-        replacementPolicy->access(pkt, blk != nullptr);
+        replacementPolicy->access(pkt, blk != nullptr, entries);
 
         // Access all tags in parallel, hence one in each way.  The data side
         // either accesses all blocks in parallel, or one block sequentially on

@@ -64,7 +64,7 @@ class Base : public SimObject
     virtual ~Base() = default;
 
     /** For any access, update the replacement policy */
-    virtual void access(const PacketPtr pkt, bool hit) {
+    virtual void access(const PacketPtr pkt, bool hit, const ReplacementCandidates& candidates) {
         return;
     }
 
