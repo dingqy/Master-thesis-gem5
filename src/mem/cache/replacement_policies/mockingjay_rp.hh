@@ -76,9 +76,6 @@ class Mockingjay : public Base
     /** Numer of bits of aging clock */
     int _num_clock_bits;
 
-    /** Enable enforcement policy for cache parition mechanism */
-    bool _cache_partition_on;
-
     /**
      * Invalidate replacement data to set it as the next probable victim.
      *

@@ -207,7 +207,6 @@ class HawkeyeRP(BaseReplacementPolicy):
     )
     num_sampled_sets = Param.Int(300, "Number of sets in sampled cache")
     timer_size = Param.Int(1 << 10, "Number of bits for timestamp")
-    cache_partition_on = Param.Bool(False, "Enable cache partition enforcement mechanism")
     num_cpus = Param.Int(1, "Number of CPU cores")
     cache_level = Param.Int(1, "Cache level")
 
@@ -242,7 +241,6 @@ class MockingjayRP(BaseReplacementPolicy):
     timer_size = Param.Int(8, "Number of bits for timestamp")
     num_cpus = Param.Int(1, "Number of cores")
     num_clock_bits = Param.Int(3, "Number of bits for aging clock")
-    cache_partition_on = Param.Bool(False, "Enable cache partition enforcement mechanism")
 
 class FlockHawkeyeRP(BaseReplacementPolicy):
     """

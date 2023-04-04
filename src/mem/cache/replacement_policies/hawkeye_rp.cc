@@ -34,7 +34,6 @@ Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _l
     DPRINTF(CacheRepl, "History Sampler Initialization ---- Number of Sample Sets: %d, Timer Size: %d\n", p.num_pred_entries, p.num_pred_bits);
     DPRINTF(CacheRepl, "Occupancy Vector Initialization ---- Vector size: %d\n", p.optgen_vector_size);
     DPRINTF(CacheRepl, "Predictor Initialization ---- Number of Predictor Entries: %d, Counter of Predictors: %d\n", p.num_pred_entries, p.num_pred_bits);
-    DPRINTF(CacheRepl, "Partition Initialization ---- Enforcement mechanism: %d\n", p.cache_partition_on);
 }
 
 void Hawkeye::invalidate(const std::shared_ptr<ReplacementData> &replacement_data)

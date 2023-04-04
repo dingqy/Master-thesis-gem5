@@ -14,7 +14,7 @@ namespace replacement_policy
 
 
 FlockHawkeye::FlockHawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _log2_block_size((int) std::log2(p.cache_block_size)), _log2_num_cache_sets((int) std::log2(p.num_cache_sets)),
-                                    _num_cpus(p.num_cpus), _num_cache_ways(p.num_cache_ways), _cache_level(p.cache_level), dram_latency(0) {
+                                    _num_cpus(p.num_cpus), _num_cache_ways(p.num_cache_ways), _cache_level(p.cache_level), repartition(0), dram_latency(0) {
     // Paramters:
     //  1. num_rrpv_bits (RRPV bits)
     //  2. num_cache_sets (Number of target cache sets)
@@ -33,12 +33,17 @@ FlockHawkeye::FlockHawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv
         samplers.push_back(std::make_unique<HistorySampler>(p.num_sampled_sets, p.num_cache_sets, p.cache_block_size, p.timer_size));
         predictors.push_back(std::make_unique<PCBasedPredictor>(p.num_pred_entries, p.num_pred_bits));
         opt_vectors.push_back(std::make_unique<OccupencyVector>(p.num_cache_ways, p.optgen_vector_size));
-        proj_vectors.push_back(std::make_unique<OccupencyVector>(p.num_cache_ways, p.optgen_vector_size));
+        for (int i = 0; i <= p.num_cache_ways; i++) {
+            // This is a hack on Projected occupency vector
+            // Normally, LLC is 16 ways. So projected occupency vector should be 0 - 16 per core (zero partition size - full paritition) and the size is 17 per core
+            proj_vectors.push_back(std::make_unique<OccupencyVector>(i, p.optgen_vector_size));
+        }
     }
 
     curr_partition.resize(p.num_cpus, 0);
     ratio_counter.resize(p.num_cpus);
 
+    // Initilize the stats for the cache use Flock (LLC)
     for (int i = 0; i < p.num_cpus; i++) {
         cache_stats[std::make_pair(p.cache_level, i)] = std::make_pair(0, 0);
     }
@@ -47,6 +52,7 @@ FlockHawkeye::FlockHawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv
     DPRINTF(CacheRepl, "History Sampler Initialization ---- Number of Sample Sets: %d, Timer Size: %d\n", p.num_pred_entries, p.num_pred_bits);
     DPRINTF(CacheRepl, "Occupancy Vector Initialization ---- Vector size: %d\n", p.optgen_vector_size);
     DPRINTF(CacheRepl, "Predictor Initialization ---- Number of Predictor Entries: %d, Counter of Predictors: %d\n", p.num_pred_entries, p.num_pred_bits);
+    DPRINTF(CacheRepl, "Partition Initialization ---- Number of Cores: %d, Cache Level: %d\n", p.num_cpus, p.cache_level);
 }
 
 void FlockHawkeye::invalidate(const std::shared_ptr<ReplacementData> &replacement_data)
@@ -62,11 +68,18 @@ void FlockHawkeye::invalidate(const std::shared_ptr<ReplacementData> &replacemen
 }
 
 void FlockHawkeye::access(const PacketPtr pkt, bool hit, const ReplacementCandidates& candidates) {
+
+    // If the packet is requests, then it should be from higher level caches in multi-level cache hierarchy
+    // It should bring higher level cache statistics
     if (pkt->isRequest() && pkt->req->hasCacheStats()) {
+        // Key: Cache level
+        // Value: Cache miss and access
         std::unordered_map<int, std::pair<double, double>>::iterator it = pkt->req->getCacheStatsBegin();
         std::unordered_map<int, std::pair<double, double>>::iterator it_end = pkt->req->getCacheStatsEnd();
 
         for (; it != it_end; it++) {
+            // Different cores will have different private L1 and L2 caches
+            // So core id is necessary in the key
             std::pair<int, ContextID> key = std::make_pair(it->first, pkt->req->contextId());
             if (cache_stats.find(key) != cache_stats.end()) {
                 if (cache_stats[key].first <= ((Counter) it->second.first) && cache_stats[key].second <= pkt->req->getInstCount()) {
@@ -74,10 +87,17 @@ void FlockHawkeye::access(const PacketPtr pkt, bool hit, const ReplacementCandid
                     cache_stats[key] = std::make_pair((Counter) it->second.first, pkt->req->getInstCount());
                     cache_latency_stats[key] = it->second.second;
                 }
+            } else {
+                cache_stats[key] = std::make_pair((Counter) it->second.first, pkt->req->getInstCount());
+                cache_latency_stats[key] = it->second.second;
+
             }
+            DPRINTF(CacheRepl, "Cache statistics from high level caches -- Cache level: %d, Core id: %d, Miss count: %ld, Inst count: %ld, Average access latency: %.4f\n", 
+                    key.first, key.second, cache_stats[key].first, cache_stats[key].second, cache_latency_stats[key]);
         }
     }
 
+    // If the packet is response, then it should come from DRAM (LLC is the last one in cache system)
     if (pkt->isResponse() && pkt->req->hasDRAMStats()) {
         Counter temp_access = (Counter) pkt->req->getDRAMAccess();
         Counter temp_hit = (Counter) pkt->req->getDRAMRowHit();
@@ -87,19 +107,28 @@ void FlockHawkeye::access(const PacketPtr pkt, bool hit, const ReplacementCandid
             dram_latency = pkt->req->getAccessLatency();
             dram_ready = true;
         }
+        DPRINTF(CacheRepl, "Cache statistics from low level memory -- DRAM access: %ld, DRAM Row Hit: %ld, Average access latency: %.4f\n", 
+                dram_stats[0], dram_stats[1], dram_latency);
     }
 
-    // TODO: Only count requests?
-    // Miss count + Access count (This is different from higher level caches)
     if (pkt->isRequest()) {
+        // Access count
         cache_stats[std::make_pair(_cache_level, pkt->req->contextId())].second += 1;
+        // Miss count
         cache_stats[std::make_pair(_cache_level, pkt->req->contextId())].first += (!hit);
     }
 
+    // The packet come from CPU should have current running cycles if it is a timing CPU
+    // CPI can get from cycles and instruction count when CPU set these two stats at the same time
     if (pkt->isRequest() && pkt->req->hasContextId() && pkt->req->hasInstCount() && pkt->req->hasNumCycles()) {
         cpi_stats[pkt->req->contextId()] = pkt->req->getNumCycles() / pkt->req->getInstCount();
+        DPRINTF(CacheRepl, "CPI from CPU -- CPI: %.4f\n", cpi_stats[pkt->req->contextId()]);
     }
 
+    // Aging scheme
+    // If the cache line is cache-averse, RRPV should always be 7 and have the highest priority to be victim no matter which core it is
+    // If the cache line is cache-friendly, RRPV should be at most 6 and it will be aged based on ratio counter for each cache access 
+    // (This is different from Hawkeye since the latter only age when cache miss)
     for (int i = 0; i < _num_cpus; i++) {
         if (ratio_counter[i].counter >= ratio_counter[i].ratio_max) {
             for (const auto& candidate : candidates) {
@@ -107,14 +136,31 @@ void FlockHawkeye::access(const PacketPtr pkt, bool hit, const ReplacementCandid
                     std::static_pointer_cast<FlockHawkeyeReplData>(
                         candidate->replacementData);
                 // TODO: Is saturated counter support comparison?
-                if (candidate_repl_data->valid && candidate_repl_data->context_id == i && candidate_repl_data->rrpv < 6) {
-                    candidate_repl_data->rrpv++;
+                if (candidate_repl_data->valid) {
+                    gem5_assert(candidate_repl_data->rrpv == 7 && !candidate_repl_data->is_cache_friendly, "Cache-averse line will always have 7 RRPV value");
+                    if (candidate_repl_data->valid && candidate_repl_data->context_id == i && candidate_repl_data->rrpv < 6) {
+                        candidate_repl_data->rrpv++;
+                    }
                 }
             }
             ratio_counter[i].counter = 0;   
         } else {
             ratio_counter[i].counter += 1;
         }
+    }
+
+    // TODO: What's the frequency of recalculating the partition size and aging counter?
+    repartition += 1;
+    if (repartition == REPARITITION_SIZE) {
+        DPRINTF(CacheRepl, "Partition -- Re-partition starts\n");
+        setNewPartition();   
+        repartition = 0;
+    }
+    reaging += 1;
+    if (reaging == REAGING_SIZE) {
+        DPRINTF(CacheRepl, "Aging Counter -- Re-aging starts\n");
+        setAgingCounter();
+        reaging = 0;
     }
 }
 
@@ -131,7 +177,6 @@ ReplaceableEntry* FlockHawkeye::getVictim(const ReplacementCandidates& candidate
 
     // Visit all candidates to find victim
     // If there is no invalid cache line, the one with highest RRPV will be evicted
-    // TODO: Bypass cache should be possible (return nullptr)
     for (const auto& candidate : candidates) {
         std::shared_ptr<FlockHawkeyeReplData> candidate_repl_data =
             std::static_pointer_cast<FlockHawkeyeReplData>(
@@ -150,19 +195,6 @@ ReplaceableEntry* FlockHawkeye::getVictim(const ReplacementCandidates& candidate
         }
     }
 
-    // Update RRPV of all candidates
-    // TODO: Aging this seems to be quite strange in Flock
-    // TODO: Ratio counter
-    for (const auto& candidate : candidates) {
-        std::shared_ptr<FlockHawkeyeReplData> temp =
-            std::static_pointer_cast<FlockHawkeyeReplData>(candidate->replacementData);
-        // TODO: Is saturated counter support comparison?
-        if (temp->valid && temp->is_cache_friendly && temp->rrpv < 6) {
-            temp->rrpv++;
-        }
-        panic_if(temp->rrpv > 6 && temp->is_cache_friendly, "Friendly cache should never be the maximum value of RRPV (6)");
-    }
-
     return victim;
 }
 
@@ -175,10 +207,13 @@ void FlockHawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_dat
         return;
     }
 
+    // Each core has its own Hawkeye
     int component_index = pkt->req->contextId();
 
     DPRINTF(CacheRepl, "Cache hit ---- Packet type having PC: %s\n", pkt->cmdString());
 
+    // Cache friendly line should be 0 again when being re-accessed
+    // Cache averse line should always be 7
     if (casted_replacement_data->is_cache_friendly) {
         casted_replacement_data->rrpv.reset();
     } else {
@@ -202,10 +237,12 @@ void FlockHawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_dat
 
         // sample hit
         predictors[component_index]->train(last_PC, opt_vectors[component_index]->should_cache(curr_timestamp, last_timestamp));
-        proj_vectors[component_index]->should_cache(curr_timestamp, last_timestamp);
+
+        int proj_vector_index = component_index * (_num_cache_ways + 1) + curr_partition[component_index];
+        proj_vectors[proj_vector_index]->should_cache(curr_timestamp, last_timestamp);
 
         opt_vectors[component_index]->add_access(curr_timestamp);
-        proj_vectors[component_index]->add_access(curr_timestamp);
+        proj_vectors[proj_vector_index]->add_access(curr_timestamp);
     }
 }
 
@@ -222,6 +259,7 @@ void FlockHawkeye::reset(const std::shared_ptr<ReplacementData>& replacement_dat
         return;
     }
 
+    // Each core has its own Hawkeye
     int component_index = pkt->req->contextId();
 
     DPRINTF(CacheRepl, "Cache miss handling ---- Packet type having PC: %s\n", pkt->cmdString());
@@ -256,11 +294,13 @@ void FlockHawkeye::reset(const std::shared_ptr<ReplacementData>& replacement_dat
         DPRINTF(CacheRepl, "Cache miss handling ---- Sampler Hit, Last timestamp: %d, Current timestamp: %d, Last PC: %d\n", last_timestamp, curr_timestamp, last_PC);
 
         // sample hit
+
+        int proj_vector_index = component_index * (_num_cache_ways + 1) + curr_partition[component_index];
         predictors[component_index]->train(last_PC, opt_vectors[component_index]->should_cache(curr_timestamp, last_timestamp));
-        proj_vectors[component_index]->should_cache(curr_timestamp, last_timestamp);
+        proj_vectors[proj_vector_index]->should_cache(curr_timestamp, last_timestamp);
 
         opt_vectors[component_index]->add_access(curr_timestamp);
-        proj_vectors[component_index]->add_access(curr_timestamp);
+        proj_vectors[proj_vector_index]->add_access(curr_timestamp);
     }
 }
 
@@ -313,12 +353,17 @@ double FlockHawkeye::getCurrFCP(int core_id) {
 
     gem5_assert(mr1 >= mr2, "Miss rate difference can not be negative");
     gem5_assert(mr2 >= mr3, "Miss rate difference can not be negative");
+
+    // TODO: DRAM latency should based on epoch behavior
     double fcp = (mr1 - mr2) * cache_latency_stats[key_l2] + (mr2 - mr3) * cache_latency_stats[key_l3] + mr3 * dram_latency;
+
+    DPRINTF(CacheRepl, "FCP ---- mr1: %.4f, mr2: %.4f, mr3: %.4f\n, fcp: %.4f", mr1, mr2, mr3, fcp);
+    DPRINTF(CacheRepl, "FCP ---- L2 latency: %.4f, L3 latency: %.4f, DRAM latency: %.4f\n", cache_latency_stats[key_l2], cache_latency_stats[key_l3], dram_latency);
     
     return fcp;
 }
 
-double FlockHawkeye::getProjFCP(int core_id) {
+double FlockHawkeye::getProjFCP(int core_id, int partition) {
     // TODO:
     //  1. mr1, mr2 is the same as current FCP
     //  2. miss count under 10% higher partition can be linear interpolation based on current miss count, sampled projected miss count, sampled miss count
@@ -355,20 +400,24 @@ double FlockHawkeye::getProjFCP(int core_id) {
     Counter inst_l3 = cache_stats[key_l3].second;
     double mr3 = ((double) misses_l3) / ((double) inst_l3);
 
-    double frac = proj_vectors[core_id]->get_num_opt_misses(proj_vectors[core_id]->getCacheSize()) / opt_vectors[core_id]->get_num_opt_misses(opt_vectors[core_id]->getCacheSize());
+    double frac = proj_vectors[core_id * (_num_cache_ways + 1) + partition]->get_num_opt_misses(proj_vectors[core_id * (_num_cache_ways + 1) + 
+        partition]->getCacheSize()) / opt_vectors[core_id]->get_num_opt_misses(opt_vectors[core_id]->getCacheSize());
     double mr3_proj = frac * mr3;
 
     // DRAM
     if (!dram_ready) {
         return -1.0;
     }
-    double est_miss_count = mr3_proj * inst_l3;
-    double dram_latency_proj = ((dram_stats[0] - dram_stats[1]) / dram_stats[1]) * (est_miss_count / (double) misses_l3) * dram_latency;
+    // double est_miss_count = mr3_proj * misses_l3;
+    double dram_latency_proj = ((dram_stats[0] - dram_stats[1]) / dram_stats[1]) * mr3_proj * dram_latency;
     
     gem5_assert(mr1 >= mr2, "Miss rate difference can not be negative");
     gem5_assert(mr2 >= mr3, "Miss rate difference can not be negative");
     double fcp = (mr1 - mr2) * cache_latency_stats[key_l2] + (mr2 - mr3_proj) * cache_latency_stats[key_l3] + mr3_proj * dram_latency_proj;
     
+    DPRINTF(CacheRepl, "FCP ---- mr1: %.4f, mr2: %.4f, mr3: %.4f\n, fcp: %.4f", mr1, mr2, mr3, fcp);
+    DPRINTF(CacheRepl, "FCP ---- L2 latency: %.4f, L3 latency: %.4f, DRAM latency: %.4f\n", cache_latency_stats[key_l2], cache_latency_stats[key_l3], dram_latency);
+
     return fcp;
 }
 
@@ -376,16 +425,14 @@ void FlockHawkeye::setNewPartition() {
     // TODO:
     //  Paper: Algorithm 1 Heuristic for Scalable Partitioning
 
-    int total_credit = 0;
-    for (auto &i : curr_partition) {
-        total_credit += i;
-    }    
-    if (total_credit > 0) {
+    int total_credit = _num_cache_ways;
+    std::vector<int> temp_partition;
+    temp_partition.resize(_num_cpus, 0);
+    while (total_credit > 0) {
         int max_core_id = -1;
         double max_gain = 0.0;
         for (int i = 0; i < _num_cpus; i++) {
-            int curr_idx_partition = curr_partition[i];
-            int gain = (getProjFCP(i) - getCurrFCP(i)) / cpi_stats[i];
+            int gain = (getProjFCP(i, temp_partition[i] + 1) - getProjFCP(i, temp_partition[0])) / cpi_stats[i];
             if (gain > max_gain) {
                 max_gain = gain;
                 max_core_id = i;
@@ -393,12 +440,14 @@ void FlockHawkeye::setNewPartition() {
         }
         
         gem5_assert(max_core_id != 1, "If there is partition budget, it should be dispatched");
-        int new_partition = curr_partition[max_core_id] + std::floor(0.1 * _num_cache_ways);
-        curr_partition[max_core_id] = new_partition;
-        opt_vectors[max_core_id]->setCacheSize(curr_partition[max_core_id]);
+        temp_partition[max_core_id] = temp_partition[max_core_id] + std::floor(0.1 * _num_cache_ways);
+        total_credit = total_credit - std::floor(0.1 * _num_cache_ways);
+    }
 
-        // TODO: Allow reduce partition size
-        proj_vectors[max_core_id]->setCacheSize(std::min(_num_cache_ways, new_partition));
+    curr_partition = std::move(temp_partition);
+
+    for (int i = 0; i < _num_cpus; i++) {
+        opt_vectors[i]->setCacheSize(curr_partition[i]);
     }
 }
 
@@ -425,7 +474,6 @@ void FlockHawkeye::setAgingCounter() {
             }
         }
     }
-
 }
 
 } // namespace replacement_policy

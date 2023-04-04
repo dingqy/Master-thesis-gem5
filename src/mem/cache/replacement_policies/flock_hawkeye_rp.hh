@@ -18,6 +18,9 @@
 namespace gem5
 {
 
+static constexpr int REPARITITION_SIZE = 10000;
+static constexpr int REAGING_SIZE = 10000;
+
 class System;
 
 struct FlockHawkeyeRPParams;
@@ -109,6 +112,10 @@ class FlockHawkeye : public Base
 
     std::map<ContextID, double> cpi_stats;
 
+    Counter repartition;
+
+    Counter reaging;
+
     Counter dram_stats[2]; // 0 - Access; 1 - Rowhits
 
     double dram_latency;
@@ -117,7 +124,7 @@ class FlockHawkeye : public Base
 
     double getCurrFCP(int core_id); 
 
-    double getProjFCP(int core_id);
+    double getProjFCP(int core_id, int partition);
 
     void setNewPartition();
 

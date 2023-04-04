@@ -22,7 +22,7 @@ namespace replacement_policy
  *    9. timer_size (Number of bits for timestamp)
  *    10. cache_partition_on (Enable cache parition enforcement mechanism)
  */
-Mockingjay::Mockingjay(const Params &p) : Base(p), _num_etr_bits(p.num_etr_bits), _cache_partition_on(p.cache_partition_on) {
+Mockingjay::Mockingjay(const Params &p) : Base(p), _num_etr_bits(p.num_etr_bits) {
     sampled_cache = new SampledCache(p.num_sampled_sets, p.num_cache_sets, p.cache_block_size, p.timer_size, p.num_cpus);
     predictor = new ReuseDistPredictor(p.num_pred_entries, p.num_pred_bits, p.num_clock_bits, p.num_cpus);
     age_ctr = new uint8_t[p.num_cache_sets];
@@ -34,7 +34,6 @@ Mockingjay::Mockingjay(const Params &p) : Base(p), _num_etr_bits(p.num_etr_bits)
     DPRINTF(CacheRepl, "History Sampler Initialization ---- Number of Sample Sets: %d, Timer Size: %d\n", p.num_pred_entries, p.num_pred_bits);
     DPRINTF(CacheRepl, "Predictor Initialization ---- Number of Predictor Entries: %d, Counter of Predictors: %d\n", p.num_pred_entries, p.num_pred_bits);
     DPRINTF(CacheRepl, "CPU Core Initialization ---- Number of Cores: %d\n", p.num_cpus);
-    DPRINTF(CacheRepl, "Partition Initialization ---- Enforcement mechanism: %d\n", p.cache_partition_on);
 }
 
 Mockingjay::~Mockingjay() {
