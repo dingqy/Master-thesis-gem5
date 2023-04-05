@@ -128,7 +128,7 @@ class BaseSetAssoc : public BaseTags
     {
         CacheBlk *blk = findBlock(pkt->getAddr(), pkt->isSecure());
 
-        const std::vector<ReplaceableEntry*> entries = indexingPolicy->getPossibleEntries(regenerateBlkAddr(blk));
+        const std::vector<ReplaceableEntry*> entries = indexingPolicy->getPossibleEntries(pkt->getAddr());
 
         // TODO: Refresh statistics in replacement policy
         replacementPolicy->access(pkt, blk != nullptr, entries);
@@ -150,7 +150,7 @@ class BaseSetAssoc : public BaseTags
             // Update number of references to accessed block
             blk->increaseRefCount();
 
-            const std::vector<ReplaceableEntry*> entries = indexingPolicy->getPossibleEntries(regenerateBlkAddr(blk));
+            const std::vector<ReplaceableEntry*> entries = indexingPolicy->getPossibleEntries(pkt->getAddr());
             // Update replacement data of accessed block
             replacementPolicy->touch(blk->replacementData, pkt, entries);
         }
