@@ -108,7 +108,7 @@ PCBasedPredictor::~PCBasedPredictor() {
 
 void PCBasedPredictor::train(uint64_t last_PC, bool opt_decision) {
     uint64_t signature = last_PC % num_entries;
-    panic_if(signature != last_PC, "Current predictor entries should always the same as PC bits");
+    panic_if(signature != last_PC, "Current predictor entries should always the same as PC bits, signature: %ld, last PC: %ld", signature, last_PC);
     if (opt_decision) {
         // Cache hit
         if (counters[signature] < max_value) {
@@ -123,7 +123,7 @@ void PCBasedPredictor::train(uint64_t last_PC, bool opt_decision) {
 
 bool PCBasedPredictor::predict(uint64_t PC) {
     uint64_t signature = CRC(PC) % num_entries;
-    DPRINTF(CacheRepl, "Predictor ---- Hashed PC: 0x%.8x", signature);
+    DPRINTF(HawkeyeReplDebug, "Predictor ---- Hashed PC: 0x%.8x\n", signature);
     return (counters[signature] >> (bits_per_entry - 1)) & 0x1;
 }
 
@@ -150,14 +150,14 @@ HistorySampler::~HistorySampler() {
 bool HistorySampler::sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp) {
     if (SAMPLED_SET(set, _num_cache_sets)) {
 
-        DPRINTF(CacheRepl, "Sampler ---- Set hit: Set index %d\n", set);
+        DPRINTF(HawkeyeReplDebug, "Sampler ---- Set hit: Set index %d\n", set);
 
         uint64_t set_index = (addr >> _log2_cache_block_size) % _num_sets;
         uint16_t addr_tag = CRC(addr >> (_log2_cache_block_size + _log2_num_sets)) & ADDRESS_TAG_MASK;
         uint16_t hashed_pc = CRC(PC) & HASHED_PC_MASK;
         uint8_t timestamp = set_timestamp_counter[set_index];
 
-        DPRINTF(CacheRepl, "Sampler ---- Set info: Set index %d, Address Tag: 0x%.8x, Hased PC: 0x%.8x, Current Timestamp: %d\n", set, addr_tag, hashed_pc, timestamp);
+        DPRINTF(HawkeyeReplDebug, "Sampler ---- Set info: Set index %d, Address Tag: 0x%.8x, Hased PC: 0x%.8x, Current Timestamp: %d\n", set, addr_tag, hashed_pc, timestamp);
 
         *curr_timestamp = timestamp;
 
@@ -165,12 +165,12 @@ bool HistorySampler::sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp,
             sample_data[set_index].insert(addr_tag, hashed_pc, timestamp);
             set_timestamp_counter[set_index] = (set_timestamp_counter[set_index] + 1) % _timer_size;
 
-            DPRINTF(CacheRepl, "Sampler ---- Sampler miss handling: Last timestamp: %d, Current Timestamp: %d\n", last_timestamp, set_timestamp_counter[set_index]);
+            DPRINTF(HawkeyeReplDebug, "Sampler ---- Sampler miss handling: Last timestamp: %d, Current Timestamp: %d\n", *last_timestamp, timestamp);
             return false;
         }
 
         set_timestamp_counter[set_index] = (set_timestamp_counter[set_index] + 1) % _timer_size;
-        DPRINTF(CacheRepl, "Sampler ---- Sampler hit: Last timestamp: %d, Current Timestamp: %d\n", last_timestamp, set_timestamp_counter[set_index]);
+        DPRINTF(HawkeyeReplDebug, "Sampler ---- Sampler hit: Last timestamp: %d, Current Timestamp: %d\n", *last_timestamp, timestamp);
         return true;
     } else {
         return false;

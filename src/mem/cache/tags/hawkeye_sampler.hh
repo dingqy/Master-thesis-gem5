@@ -11,14 +11,14 @@
 #include <vector>
 #include <unordered_map>
 #include "base/sat_counter.hh"
-#include "debug/CacheRepl.hh"
 #include "base/trace.hh"
+#include "debug/HawkeyeReplDebug.hh"
 
 namespace gem5 {
 
 // Warning: Sampled cache way is fixed (8)
 static constexpr uint32_t NUM_WAY_CACHE_SET = 8;
-static constexpr uint32_t HASHED_PC_LEN = 16;
+static constexpr uint32_t HASHED_PC_LEN = 13;
 static constexpr uint64_t HASHED_PC_MASK = ((1 << HASHED_PC_LEN) - 1);
 static constexpr uint32_t TIMESTAMP_LEN = 8;
 static constexpr uint64_t TIMESTAMP_LEN_MASK = ((1 << TIMESTAMP_LEN) - 1);
@@ -115,7 +115,7 @@ class HistorySampler
       bool access(uint16_t addr_tag, uint16_t PC, uint8_t timestamp, uint16_t *last_PC, uint8_t *last_timestamp) {
 
         for (int i = 0; i < NUM_WAY_CACHE_SET; i++) {
-          if (addr_tag == ways[i].getAddress()) {
+          if (ways[i].valid && addr_tag == ways[i].getAddress()) {
             *last_PC = ways[i].getPC();
             *last_timestamp = ways[i].getTimestamp();
 
@@ -128,6 +128,7 @@ class HistorySampler
               }
             }
             ways[i].lru = NUM_WAY_CACHE_SET - 1;
+            DPRINTF(HawkeyeReplDebug, "Sampler Cache Access ---- Sampler hit: Last timestamp: %d, Current Timestamp: %d, Valid: %d\n", *last_timestamp, timestamp, ways[i].valid);
             return true;
           }
         }

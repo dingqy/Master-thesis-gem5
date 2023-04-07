@@ -2,8 +2,6 @@
 
 #include "base/logging.hh"
 #include "params/HawkeyeRP.hh"
-#include "debug/CacheRepl.hh"
-#include "base/trace.hh"
 
 namespace gem5
 {
@@ -30,10 +28,10 @@ Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _l
     predictor = std::make_unique<PCBasedPredictor>(p.num_pred_entries, p.num_pred_bits);
     opt_vector = std::make_unique<OccupencyVector>(p.num_cache_ways, p.optgen_vector_size);
 
-    DPRINTF(CacheRepl, "Cache Initialization ---- Number of Cache Sets: %d, Cache Block Size: %d, Number of Cache Ways: %d\n", p.num_cache_sets, p.cache_block_size, p.num_cache_ways);
-    DPRINTF(CacheRepl, "History Sampler Initialization ---- Number of Sample Sets: %d, Timer Size: %d\n", p.num_pred_entries, p.num_pred_bits);
-    DPRINTF(CacheRepl, "Occupancy Vector Initialization ---- Vector size: %d\n", p.optgen_vector_size);
-    DPRINTF(CacheRepl, "Predictor Initialization ---- Number of Predictor Entries: %d, Counter of Predictors: %d\n", p.num_pred_entries, p.num_pred_bits);
+    DPRINTF(HawkeyeReplDebug, "Cache Initialization ---- Number of Cache Sets: %d, Cache Block Size: %d, Number of Cache Ways: %d\n", p.num_cache_sets, p.cache_block_size, p.num_cache_ways);
+    DPRINTF(HawkeyeReplDebug, "History Sampler Initialization ---- Number of Sample Sets: %d, Timer Size: %d\n", p.num_pred_entries, p.num_pred_bits);
+    DPRINTF(HawkeyeReplDebug, "Occupancy Vector Initialization ---- Vector size: %d\n", p.optgen_vector_size);
+    DPRINTF(HawkeyeReplDebug, "Predictor Initialization ---- Number of Predictor Entries: %d, Counter of Predictors: %d\n", p.num_pred_entries, p.num_pred_bits);
 }
 
 void Hawkeye::invalidate(const std::shared_ptr<ReplacementData> &replacement_data)
@@ -87,6 +85,7 @@ ReplaceableEntry* Hawkeye::getVictim(const ReplacementCandidates& candidates) co
         std::shared_ptr<HawkeyeReplData> temp =
             std::static_pointer_cast<HawkeyeReplData>(candidate->replacementData);
         // TODO: Is saturated counter support comparison?
+        // TODO: Hard code 3-bit RRPV here
         if (temp->valid && temp->is_cache_friendly && temp->rrpv < 6) {
             temp->rrpv++;
         }
@@ -102,21 +101,23 @@ void Hawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_data, co
 
     // TODO: Which requests should we monitor?
     if (!pkt->isRequest() || !pkt->req->hasPC() || !pkt->req->hasContextId()) {
+        DPRINTF(HawkeyeReplDebug, "Cache hit (Packet not valid for further action) ---- Request: %d, PC %d, Context ID: %d\n", pkt->isRequest(), pkt->req->hasPC(), pkt->req->hasContextId());
+        DPRINTF(HawkeyeReplDebug, "Cache hit ---- Packet type: %s\n", pkt->cmdString());
         return;
     }
 
-    DPRINTF(CacheRepl, "Cache hit ---- Packet type having PC: %s\n", pkt->cmdString());
+    DPRINTF(HawkeyeReplDebug, "Cache hit ---- Packet type having PC: %s\n", pkt->cmdString());
 
     if (casted_replacement_data->is_cache_friendly) {
-        casted_replacement_data->rrpv.reset();
+        casted_replacement_data->reset();
     } else {
-        casted_replacement_data->rrpv.saturate();
+        casted_replacement_data->saturate();
     }
     casted_replacement_data->context_id = pkt->req->contextId();
 
     int set = (pkt->getAddr() >> _log2_block_size) & ((1 << _log2_num_cache_sets) - 1);
 
-    DPRINTF(CacheRepl, "Cache hit ---- Request Address: 0x%.8x, Set Index: %d, PC: 0x%.8x\n", pkt->getAddr(), set, pkt->req->getPC());
+    DPRINTF(HawkeyeReplDebug, "Cache hit ---- Request Address: 0x%.8x, Set Index: %d, PC: 0x%.8x\n", pkt->getAddr(), set, pkt->req->getPC());
 
     // Warning: Timestamp is 8-bit integer in this design
     uint8_t curr_timestamp;
@@ -126,7 +127,7 @@ void Hawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_data, co
     if (sampler->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp)) {
         curr_timestamp = curr_timestamp % opt_vector->get_vector_size();
 
-        DPRINTF(CacheRepl, "Cache hit ---- Sampler Hit, Last timestamp: %d, Current timestamp: %d, Last PC: %d\n", last_timestamp, curr_timestamp, last_PC);
+        DPRINTF(HawkeyeReplDebug, "Cache hit ---- Sampler Hit, Last timestamp: %d, Current timestamp: %d, Last PC: %d\n", last_timestamp, curr_timestamp, last_PC);
 
         // sample hit
         predictor->train(last_PC, opt_vector->should_cache(curr_timestamp, last_timestamp));
@@ -143,39 +144,41 @@ void Hawkeye::reset(const std::shared_ptr<ReplacementData>& replacement_data, co
     std::shared_ptr<HawkeyeReplData> casted_replacement_data =
         std::static_pointer_cast<HawkeyeReplData>(replacement_data);
 
-    if (!pkt->isRequest() || !pkt->req->hasPC() || !pkt->req->hasContextId()) {
+    if (!pkt->isResponse() || !pkt->req->hasPC() || !pkt->req->hasContextId()) {
+        DPRINTF(HawkeyeReplDebug, "Cache miss (Packet not valid for further action) ---- Request: %d, PC %d, Context ID: %d\n", pkt->isRequest(), pkt->req->hasPC(), pkt->req->hasContextId());
+        DPRINTF(HawkeyeReplDebug, "Cache miss handling ---- Packet type: %s\n", pkt->cmdString());
         return;
     }
 
-    DPRINTF(CacheRepl, "Cache miss handling ---- Packet type having PC: %s\n", pkt->cmdString());
+    DPRINTF(HawkeyeReplDebug, "Cache miss handling ---- Packet type having PC: %s\n", pkt->cmdString());
 
     bool is_friendly = predictor->predict(pkt->req->getPC());
 
     casted_replacement_data->is_cache_friendly = is_friendly;
 
     if (is_friendly) {
-        casted_replacement_data->rrpv.saturate();
+        casted_replacement_data->reset();
     } else {
-        casted_replacement_data->rrpv.reset();
+        casted_replacement_data->saturate();        
     }
 
     casted_replacement_data->valid = true;
     casted_replacement_data->context_id = pkt->req->contextId();
 
-    DPRINTF(CacheRepl, "Cache miss handling ---- New Cache Line: Friendliness %d RRPV: %d Valid: %d\n", casted_replacement_data->is_cache_friendly, 
+    DPRINTF(HawkeyeReplDebug, "Cache miss handling ---- New Cache Line: Friendliness %d RRPV: %d Valid: %d\n", casted_replacement_data->is_cache_friendly, 
             casted_replacement_data->rrpv, casted_replacement_data->valid);
 
     int set = (pkt->getAddr() >> _log2_block_size) & ((1 << _log2_num_cache_sets) - 1);
 
-    DPRINTF(CacheRepl, "Cache miss handling ---- Request Address: 0x%.8x, Set Index: %d, PC: 0x%.8x\n", pkt->getAddr(), set, pkt->req->getPC());
+    DPRINTF(HawkeyeReplDebug, "Cache miss handling ---- Request Address: 0x%.8x, Set Index: %d, PC: 0x%.8x\n", pkt->getAddr(), set, pkt->req->getPC());
 
-    uint8_t curr_timestamp;
-    uint8_t last_timestamp;
-    uint16_t last_PC;
+    uint8_t curr_timestamp = 0;
+    uint8_t last_timestamp = 0;
+    uint16_t last_PC = 0;
 
     if (sampler->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp)) {
         curr_timestamp = curr_timestamp % opt_vector->get_vector_size();
-        DPRINTF(CacheRepl, "Cache miss handling ---- Sampler Hit, Last timestamp: %d, Current timestamp: %d, Last PC: %d\n", last_timestamp, curr_timestamp, last_PC);
+        DPRINTF(HawkeyeReplDebug, "Cache miss handling ---- Sampler Hit, Last timestamp: %d, Current timestamp: %d, Last PC: %d\n", last_timestamp, curr_timestamp, last_PC);
 
         // sample hit
         predictor->train(last_PC, opt_vector->should_cache(curr_timestamp, last_timestamp));

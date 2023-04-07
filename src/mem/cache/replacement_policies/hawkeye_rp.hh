@@ -11,6 +11,8 @@
 #include "base/types.hh"
 #include "mem/cache/replacement_policies/base.hh"
 #include "mem/cache/tags/hawkeye_sampler.hh"
+#include "base/trace.hh"
+#include "debug/HawkeyeReplDebug.hh"
 
 namespace gem5
 {
@@ -34,7 +36,9 @@ class Hawkeye : public Base
          *
          * Allow multiple max_RRPV-1 to exist and will choose based on the index of the cache line
          */
-        SatCounter8 rrpv;
+        int rrpv;
+
+        int max_rrpv;
 
         /** Cacheline type */
         bool is_cache_friendly;
@@ -44,10 +48,18 @@ class Hawkeye : public Base
 
         int context_id;
 
+        void saturate() {
+          rrpv = max_rrpv;
+        }
+
+        void reset() {
+          rrpv = 0;
+        }
+
         /**
          * Default constructor. Invalidate data.
          */
-        HawkeyeReplData(const int num_bits) : rrpv(num_bits), is_cache_friendly(false), valid(false), context_id(0) {}
+        HawkeyeReplData(const int num_bits) : rrpv(0), max_rrpv((1 << num_bits) - 1), is_cache_friendly(false), valid(false), context_id(0) {}
     };
 
     struct RatioCounter {
