@@ -120,9 +120,9 @@ void Hawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_data, co
     DPRINTF(HawkeyeReplDebug, "Cache hit ---- Request Address: 0x%.8x, Set Index: %d, PC: 0x%.8x\n", pkt->getAddr(), set, pkt->req->getPC());
 
     // Warning: Timestamp is 8-bit integer in this design
-    uint8_t curr_timestamp;
-    uint8_t last_timestamp;
-    uint16_t last_PC;
+    uint8_t curr_timestamp = 0;
+    uint8_t last_timestamp = 0;
+    uint16_t last_PC = 0;
 
     if (sampler->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp)) {
         curr_timestamp = curr_timestamp % opt_vector->get_vector_size();

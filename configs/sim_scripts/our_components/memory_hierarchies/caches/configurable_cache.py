@@ -32,7 +32,7 @@ class CS395T_ConfigurableCache(Cache):
         
         if repl == "hawkeye":
             print("Hawkeye Enable")
-            self.replacement_policy = HawkeyeRP(cache_level = 3, num_cache_sets = 8192)
+            self.replacement_policy = HawkeyeRP(cache_level = 2, num_cache_sets = 1024)
         else:
             self.replacement_policy = LRURP()
 

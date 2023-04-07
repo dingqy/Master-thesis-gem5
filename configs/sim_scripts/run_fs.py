@@ -39,6 +39,7 @@ parser.add_argument("warmup_interval", nargs='?', type=int, help="warmup interva
 parser.add_argument("roi_interval", nargs='?', type=int, help="ROI interval, # of instructions in millions (required with --sample)")
 parser.add_argument("--max_rois", type=int, help="in sample mode, stop sampling after MAX_ROIS ROIs (default: no max)")
 parser.add_argument("--continue", default=False, action='store_true', dest="continueSim", help="in sample mode, after MAX_ROIS ROIs, continue fast-forward execution (default: terminate)")
+parser.add_argument("--l2repl", default="lru")
 args = parser.parse_args()
 
 if(args.sample):
@@ -84,9 +85,9 @@ cache_hierarchy = CS395T_MemoryHierarchy(
    l1d_pref = "none",
    l1d_repl = "lru",
    l2_pref = "none",
-   l2_repl = "lru",
+   l2_repl = args.l2repl,
    llc_pref = "none",
-   llc_repl = "hawkeye"
+   llc_repl = "lru"
 )
 
 # This is hackish, but the SimpleProcessor models only understand the
@@ -170,7 +171,7 @@ board.set_kernel_disk_workload(
     # The second argument here tells Gem5 where the root partition is
     # This string will be appended to /dev/hda and used in the kernel command
     disk_image = CustomDiskImageResource(
-        "/home/dingqy/boot-tests/gem5-resources/src/x86-ubuntu/gem5/configs/cs395t-gem5-extras/benchmarks_image",
+        "/home/dingqy/boot-tests/gem5-resources/src/x86-ubuntu/gem5/configs/sim_scripts/benchmarks_image",
         "1"
     ),
     readfile_contents=command
