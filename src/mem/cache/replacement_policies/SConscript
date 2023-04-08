@@ -52,4 +52,4 @@ Source('flock_hawkeye_rp.cc')
 GTest('replaceable_entry.test', 'replaceable_entry.test.cc')
 
 DebugFlag('HawkeyeReplDebug', "For hawkeye debug")
-
+DebugFlag('MockingjayDebug', "For mockingjay debug")

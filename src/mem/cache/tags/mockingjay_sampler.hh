@@ -8,8 +8,8 @@
 #include <cstdint>
 #include <random>
 #include <set>
-#include "debug/CacheRepl.hh"
 #include "base/trace.hh"
+#include "debug/MockingjayDebug.hh"
 #include "base/sat_counter.hh"
 
 namespace gem5 {
@@ -57,7 +57,7 @@ class SampledCache
       uint64_t _timestamp;
 
       uint16_t getAddress() {
-        gem5_assert(_address < (1 << ADDRESS_TAG_LEN), "Address bits are wrong");
+        gem5_assert(_address < (1 << ADDRESS_TAG_LEN), "Address bits are wrong, address: 0x%.8x", _address);
         return _address;
       }
 
@@ -72,14 +72,17 @@ class SampledCache
       }
 
       void setPC(uint16_t PC) {
+        gem5_assert(_pc < (1 << HASHED_PC_LEN), "PC bits are wrong");
         _pc = PC;
       }
 
       void setTimestamp(uint8_t timestamp) {
+        gem5_assert(_timestamp < (1 << TIMESTAMP_LEN), "timestamp bits are wrong");
         _timestamp = timestamp;
       }
 
       void setAddrTag(uint16_t addrtag) {
+        gem5_assert(addrtag < (1 << ADDRESS_TAG_LEN), "Address bits are wrong");
         _address = addrtag;
       }
 
@@ -100,6 +103,7 @@ class SampledCache
         for (int i = 0; i < NUM_WAY_CACHE_SET; i++) {
           if (!ways[i].valid) {
             evict_way = i;
+            evict_lru = 0;
           }
         }
 
@@ -119,8 +123,9 @@ class SampledCache
             if (ways[i].valid && ways[i].lru < evict_lru) {
               evict_lru = ways[i].lru;
               evict_way = i;
-            } else if (ways[i].lru == evict_lru) {
-              panic("LRU for sampled cache should not have the same value");
+            } else if (ways[i].valid && ways[i].lru == evict_lru) {
+              panic("LRU for sampled cache should not have the same value: Evict way: %d, Evict LRU value: %d, LRU: %d %d %d %d %d", 
+                    evict_way, evict_lru, ways[0].lru, ways[1].lru, ways[2].lru, ways[3].lru, ways[4].lru);
             }
           }
           gem5_assert(evict_way >= 0, "There should be one cache line evicted.");
@@ -130,7 +135,8 @@ class SampledCache
         *evict_signature = ways[evict_way].getPC();
         *evict_timestamp = ways[evict_way].getTimestamp();
         for (int i = 0; i < NUM_WAY_CACHE_SET; i++) {
-          if (ways[i].valid && ways[i].lru > evict_lru && ways[i].lru > 0) {
+          if (ways[i].valid && ways[i].lru > evict_lru) {
+            gem5_assert(ways[i].lru > 0, "LRU bit cannot be negative");
             ways[i].lru -= 1;
           }
         }
@@ -146,7 +152,7 @@ class SampledCache
       bool access(uint16_t addr_tag, uint16_t PC, uint8_t timestamp, uint16_t *last_PC, uint8_t *last_timestamp) {
 
         for (int i = 0; i < NUM_WAY_CACHE_SET; i++) {
-          if (addr_tag == ways[i].getAddress()) {
+          if (ways[i].valid && addr_tag == ways[i].getAddress()) {
             *last_PC = ways[i].getPC();
             *last_timestamp = ways[i].getTimestamp();
 
@@ -188,13 +194,13 @@ class SampledCache
 
     uint64_t *set_timestamp_counter;
 
-    int _num_sets;
+    int _num_sampled_sets;
 
     int _num_cache_sets;
 
     int _cache_block_size;
 
-    int _log2_num_sets;
+    int _log2_num_sampled_sets;
 
     int _log2_cache_block_size;
 
@@ -202,9 +208,13 @@ class SampledCache
 
     int _num_cpus;
 
+    int _num_sampled_internal_sets;
+
+    int _log2_sampled_internal_sets;
+
   public:
 
-    SampledCache(const int num_sets, const int num_cache_sets, const int cache_block_size, const int timer_size, const int num_cpus);
+    SampledCache(const int num_sampled_sets, const int num_cache_sets, const int cache_block_size, const int timer_size, const int num_cpus, const int num_sampled_internal_sets);
 
     ~SampledCache();
 

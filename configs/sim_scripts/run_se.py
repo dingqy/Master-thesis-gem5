@@ -47,9 +47,9 @@ cache_hierarchy = CS395T_MemoryHierarchy(
    l1d_pref = "none",
    l1d_repl = "lru",
    l2_pref = "none",
-   l2_repl = "lru",
+   l2_repl = "mockingjay",
    llc_pref = "none",
-   llc_repl = "hawkeye"
+   llc_repl = "lru"
 )
 
 # This is hackish, but the SimpleProcessor models only understand the

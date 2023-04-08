@@ -150,14 +150,14 @@ HistorySampler::~HistorySampler() {
 bool HistorySampler::sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp) {
     if (SAMPLED_SET(set, _num_cache_sets)) {
 
-        DPRINTF(HawkeyeReplDebug, "Sampler ---- Set hit: Set index %d\n", set);
+        DPRINTF(HawkeyeReplDebug, "Sampler ---- Set hit: Set %d\n", set);
 
         uint64_t set_index = (addr >> _log2_cache_block_size) % _num_sets;
         uint16_t addr_tag = CRC(addr >> (_log2_cache_block_size + _log2_num_sets)) & ADDRESS_TAG_MASK;
         uint16_t hashed_pc = CRC(PC) & HASHED_PC_MASK;
         uint8_t timestamp = set_timestamp_counter[set_index];
 
-        DPRINTF(HawkeyeReplDebug, "Sampler ---- Set info: Set index %d, Address Tag: 0x%.8x, Hased PC: 0x%.8x, Current Timestamp: %d\n", set, addr_tag, hashed_pc, timestamp);
+        DPRINTF(HawkeyeReplDebug, "Sampler ---- Set info: Set index %d, Address Tag: 0x%.8x, Hased PC: 0x%.8x, Current Timestamp: %d\n", set_index, addr_tag, hashed_pc, timestamp);
 
         *curr_timestamp = timestamp;
 
