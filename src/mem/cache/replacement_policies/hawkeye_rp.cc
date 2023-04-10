@@ -26,7 +26,9 @@ Hawkeye::Hawkeye(const Params &p) : Base(p), _num_rrpv_bits(p.num_rrpv_bits), _l
 
     sampler = std::make_unique<HistorySampler>(p.num_sampled_sets, p.num_cache_sets, p.cache_block_size, p.timer_size);
     predictor = std::make_unique<PCBasedPredictor>(p.num_pred_entries, p.num_pred_bits);
-    opt_vector = std::make_unique<OccupencyVector>(p.num_cache_ways, p.optgen_vector_size);
+    for (int i = 0; i < p.num_cache_sets; i++) {
+        opt_vector.push_back(std::make_unique<OccupencyVector>(p.num_cache_ways, p.optgen_vector_size));
+    }
 
     DPRINTF(HawkeyeReplDebug, "Cache Initialization ---- Number of Cache Sets: %d, Cache Block Size: %d, Number of Cache Ways: %d\n", p.num_cache_sets, p.cache_block_size, p.num_cache_ways);
     DPRINTF(HawkeyeReplDebug, "History Sampler Initialization ---- Number of Sample Sets: %d, Timer Size: %d\n", p.num_pred_entries, p.num_pred_bits);
@@ -125,13 +127,14 @@ void Hawkeye::touch(const std::shared_ptr<ReplacementData>& replacement_data, co
     uint16_t last_PC = 0;
 
     if (sampler->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp)) {
-        curr_timestamp = curr_timestamp % opt_vector->get_vector_size();
+        
+        curr_timestamp = curr_timestamp % opt_vector[set]->get_vector_size();
 
         DPRINTF(HawkeyeReplDebug, "Cache hit ---- Sampler Hit, Last timestamp: %d, Current timestamp: %d, Last PC: %d\n", last_timestamp, curr_timestamp, last_PC);
 
         // sample hit
-        predictor->train(last_PC, opt_vector->should_cache(curr_timestamp, last_timestamp));
-        opt_vector->add_access(curr_timestamp);
+        predictor->train(last_PC, opt_vector[set]->should_cache(curr_timestamp, last_timestamp));
+        opt_vector[set]->add_access(curr_timestamp);
     }
 }
 
@@ -177,12 +180,12 @@ void Hawkeye::reset(const std::shared_ptr<ReplacementData>& replacement_data, co
     uint16_t last_PC = 0;
 
     if (sampler->sample(pkt->getAddr(), pkt->req->getPC(), &curr_timestamp, set, &last_PC, &last_timestamp)) {
-        curr_timestamp = curr_timestamp % opt_vector->get_vector_size();
+        curr_timestamp = curr_timestamp % opt_vector[set]->get_vector_size();
         DPRINTF(HawkeyeReplDebug, "Cache miss handling ---- Sampler Hit, Last timestamp: %d, Current timestamp: %d, Last PC: %d\n", last_timestamp, curr_timestamp, last_PC);
 
         // sample hit
-        predictor->train(last_PC, opt_vector->should_cache(curr_timestamp, last_timestamp));
-        opt_vector->add_access(curr_timestamp);
+        predictor->train(last_PC, opt_vector[set]->should_cache(curr_timestamp, last_timestamp));
+        opt_vector[set]->add_access(curr_timestamp);
     }
 }
 

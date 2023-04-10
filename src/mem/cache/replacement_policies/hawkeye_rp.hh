@@ -79,7 +79,7 @@ class Hawkeye : public Base
     std::unique_ptr<HistorySampler> sampler;
 
     /** Occupancy Vector */
-    std::unique_ptr<OccupencyVector> opt_vector;
+    std::vector<std::unique_ptr<OccupencyVector>> opt_vector;
 
     /** PC-based Binary Classifier */
     std::unique_ptr<PCBasedPredictor> predictor;
