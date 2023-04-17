@@ -41,6 +41,7 @@ parser.add_argument("--max_rois", type=int, help="in sample mode, stop sampling 
 parser.add_argument("--continue", default=False, action='store_true', dest="continueSim", help="in sample mode, after MAX_ROIS ROIs, continue fast-forward execution (default: terminate)")
 parser.add_argument("--l2repl", default="lru")
 parser.add_argument("--l3repl", default="lru")
+parser.add_argument("--image", required=True)
 parser.add_argument("--num_cores", type=int, default=1)
 args = parser.parse_args()
 
@@ -174,7 +175,7 @@ board.set_kernel_disk_workload(
     # The second argument here tells Gem5 where the root partition is
     # This string will be appended to /dev/hda and used in the kernel command
     disk_image = CustomDiskImageResource(
-        "/home/dingqy/boot-tests/gem5-resources/src/x86-ubuntu/gem5/configs/sim_scripts/benchmarks_image",
+        args.image,
         "1"
     ),
     readfile_contents=command
