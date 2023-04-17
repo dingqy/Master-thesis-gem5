@@ -52,8 +52,8 @@ class CS395T_L1DCache(CS395T_BaseL1Cache):
 
 """ L2 cache """
 class CS395T_L2Cache(CS395T_BaseL2Cache):
-    size = '1MB'
-    assoc = 16
+    size = '256kB'
+    assoc = 8
     tag_latency = 14
     data_latency = 14
     mshrs = 32
@@ -65,7 +65,7 @@ class CS395T_L2Cache(CS395T_BaseL2Cache):
 
 """ Last-level cache """
 class CS395T_LLCache(CS395T_BaseLLCache):
-    size = '8MB'
+    size = '2MB'
     assoc = 16
     tag_latency = 44
     data_latency = 44

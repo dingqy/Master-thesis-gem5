@@ -40,6 +40,8 @@ parser.add_argument("roi_interval", nargs='?', type=int, help="ROI interval, # o
 parser.add_argument("--max_rois", type=int, help="in sample mode, stop sampling after MAX_ROIS ROIs (default: no max)")
 parser.add_argument("--continue", default=False, action='store_true', dest="continueSim", help="in sample mode, after MAX_ROIS ROIs, continue fast-forward execution (default: terminate)")
 parser.add_argument("--l2repl", default="lru")
+parser.add_argument("--l3repl", default="lru")
+parser.add_argument("--num_cores", type=int, default=1)
 args = parser.parse_args()
 
 if(args.sample):
@@ -87,7 +89,7 @@ cache_hierarchy = CS395T_MemoryHierarchy(
    l2_pref = "none",
    l2_repl = args.l2repl,
    llc_pref = "none",
-   llc_repl = "lru"
+   llc_repl = args.l3repl
 )
 
 # This is hackish, but the SimpleProcessor models only understand the
@@ -105,7 +107,7 @@ processor = SimpleSwitchableProcessor(
     starting_core_type = CPUTypes.KVM if not args.nokvm else CPUTypes.ATOMIC,
     switch_core_type = CPUTypes.O3,
     isa=ISA.X86,
-    num_cores=1
+    num_cores=args.num_cores
 )
 
 # Set up the board.
@@ -146,6 +148,7 @@ commands = {
         'pr':         'cd gap                   ; ./pr -r 1 -f ./graphs/g22.el',
         'sssp':       'cd gap                   ; ./sssp -r 1 -f ./graphs/g22.el',
         'tc':         'cd gap                   ; ./tc -r 1 -f ./graphs/g22.el',
+        "bzip_gcc":     "spec06/401.bzip2/401.bzip2 spec06/401.bzip2/liberty.jpg 30 & spec06/403.gcc/403.gcc spec06/403.gcc/166.i -o spec06/403.gcc/166.s"
 }
 command = (
     "m5 workbegin;"
