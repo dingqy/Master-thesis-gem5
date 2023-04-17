@@ -23,9 +23,9 @@ namespace replacement_policy
  *    10. cache_partition_on (Enable cache parition enforcement mechanism)
  */
 Mockingjay::Mockingjay(const Params &p) : Base(p), _num_etr_bits(p.num_etr_bits) {
-    sampled_cache = new SampledCache(p.num_sampled_sets, p.num_cache_sets, p.cache_block_size, p.timer_size, p.num_cpus, p.num_internal_sampled_sets);
-    predictor = new ReuseDistPredictor(p.num_pred_entries, p.num_pred_bits, p.num_clock_bits, p.num_cpus);
-    age_ctr = new uint8_t[p.num_cache_sets];
+    sampled_cache = std::make_unique<SampledCache>(p.num_sampled_sets, p.num_cache_sets, p.cache_block_size, p.timer_size, p.num_cpus, p.num_internal_sampled_sets);
+    predictor = std::make_unique<ReuseDistPredictor>(p.num_pred_entries, p.num_pred_bits, p.num_clock_bits, p.num_cpus);
+    age_ctr.resize(p.num_cache_sets, 0);
     _log2_block_size = (int) std::log2(p.cache_block_size);
     _log2_num_cache_sets = (int) std::log2(p.num_cache_sets);
     _num_clock_bits = p.num_clock_bits;
@@ -36,11 +36,6 @@ Mockingjay::Mockingjay(const Params &p) : Base(p), _num_etr_bits(p.num_etr_bits)
     DPRINTF(MockingjayDebug, "CPU Core Initialization ---- Number of Cores: %d\n", p.num_cpus);
 }
 
-Mockingjay::~Mockingjay() {
-    delete sampled_cache;
-    delete predictor;
-    delete[] age_ctr;
-}
 
 void Mockingjay::invalidate(const std::shared_ptr<ReplacementData> &replacement_data)
 {
@@ -155,7 +150,7 @@ void Mockingjay::reset(const std::shared_ptr<ReplacementData>& replacement_data,
     }
 
     // ETR for replacement_data should be the maximum absolute value in the whole set
-    if (predictor->bypass(pkt->req->getPC(), casted_replacement_data->etr, false, pkt->req->contextId())) {
+    if (predictor->bypass(pkt->req->getPC(), casted_replacement_data->etr, false, pkt->req->contextId(), casted_replacement_data->valid)) {
         DPRINTF(MockingjayDebug, "Cache miss ---- Bypass cache: PC: 0x%.8x\n", pkt->req->getPC());
         return;
     }
@@ -203,7 +198,6 @@ void Mockingjay::reset(const std::shared_ptr<ReplacementData>& replacement_data,
     casted_replacement_data->etr = predictor->predict(pkt->getAddr(), false, pkt->req->contextId(), casted_replacement_data->abs_max_etr);
     DPRINTF(MockingjayDebug, "Cache miss ---- ETR update: %d, INF_ETR: %d\n", casted_replacement_data->etr, casted_replacement_data->abs_max_etr);
     casted_replacement_data->valid = true;
-
 }
 
 void Mockingjay::reset(const std::shared_ptr<ReplacementData>& replacement_data) const {

@@ -69,6 +69,8 @@ void FlockHawkeye::invalidate(const std::shared_ptr<ReplacementData> &replacemen
 
 void FlockHawkeye::access(const PacketPtr pkt, bool hit, const ReplacementCandidates& candidates) {
 
+    // TODO: This function may calculate miss twice
+
     // If the packet is requests, then it should be from higher level caches in multi-level cache hierarchy
     // It should bring higher level cache statistics
     if (pkt->isRequest() && pkt->req->hasCacheStats()) {

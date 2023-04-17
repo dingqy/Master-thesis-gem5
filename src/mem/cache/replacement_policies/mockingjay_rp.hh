@@ -53,19 +53,19 @@ class Mockingjay : public Base
   public:
     typedef MockingjayRPParams Params;
     Mockingjay(const Params &p);
-    ~Mockingjay();
+    ~Mockingjay() = default;
 
     /** History Sampler */
-    SampledCache *sampled_cache;
+    std::unique_ptr<SampledCache> sampled_cache;
 
     /** Reuse Distance Predictor */
-    ReuseDistPredictor *predictor;
+    std::unique_ptr<ReuseDistPredictor> predictor;
 
     /** Number of bits of ETR counter */
     const int _num_etr_bits;
 
     /** Clock age counter for each set */
-    uint8_t *age_ctr;
+    std::vector<uint8_t> age_ctr;
 
     /** Number of bits of target cache block size */
     int _log2_block_size;

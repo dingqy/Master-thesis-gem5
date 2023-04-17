@@ -134,10 +134,15 @@ uint16_t ReuseDistPredictor::predict(uint64_t PC, bool hit, int core_id, int etr
     }
 }
 
-bool ReuseDistPredictor::bypass(uint64_t PC, uint8_t max_etr, bool hit, int core_id) {
-    uint64_t signature = get_pc_signature(PC, hit, false, core_id, _num_cpus) % num_entries;
-    if ((counters[signature] > max_rd || ((counters[signature] / _granularity) > max_etr)) && counters[signature] != -1) {
-        return true;
+bool ReuseDistPredictor::bypass(uint64_t PC, uint8_t max_etr, bool hit, int core_id, bool cache_line_valid) {
+    if (cache_line_valid) {
+        uint64_t signature = get_pc_signature(PC, hit, false, core_id, _num_cpus) % num_entries;
+        if ((counters[signature] > max_rd || ((counters[signature] / _granularity) > max_etr)) && counters[signature] != -1) {
+            DPRINTF(MockingjayDebug, "Predictor (bypass) ---- Hashed PC: 0x%.8x, Counters: %d, MAX_RD: %d, MAX_ETR: %d\n", signature, counters[signature], max_rd, max_etr);
+            return true;
+        } else {
+            return false;
+        }
     } else {
         return false;
     }
@@ -171,7 +176,7 @@ SampledCache::~SampledCache() {
     delete[] set_timestamp_counter;
 }
 
-bool SampledCache::sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp, bool hit, bool *evict, bool *sampled_hit, int core_id, uint64_t inf_rd) {
+bool SampledCache:: sample(uint64_t addr, uint64_t PC, uint8_t *curr_timestamp, int set, uint16_t *last_PC, uint8_t *last_timestamp, bool hit, bool *evict, bool *sampled_hit, int core_id, uint64_t inf_rd) {
     int log2_num_cache_sets = (int) std::log2(_num_cache_sets);
     int log2_num_sets = _log2_num_sampled_sets - _log2_sampled_internal_sets;
     uint64_t num_sets_mask = (1 << log2_num_sets) - 1;

@@ -258,7 +258,7 @@ class ReuseDistPredictor
 
     uint16_t predict(uint64_t PC, bool hit, int core_id, int etr_inf);
 
-    bool bypass(uint64_t PC, uint8_t max_etr, bool hit, int core_id);
+    bool bypass(uint64_t PC, uint8_t max_etr, bool hit, int core_id, bool cache_line_valid);
 
     int getLog2NumEntries();
 
